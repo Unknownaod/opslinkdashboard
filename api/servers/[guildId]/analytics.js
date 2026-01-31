@@ -3,12 +3,12 @@ import { MongoClient } from "mongodb";
 let client;
 let db;
 
-// Connect to Mongo (reuse connection in Vercel serverless)
+// Connect to Mongo (reuse connection in serverless)
 async function connectMongo() {
   if (!client) {
     client = new MongoClient(process.env.MONGO_URI);
     await client.connect();
-    db = client.db(); // uses DB from URI
+    db = client.db(); // DB from URI
   }
   return db;
 }
@@ -56,7 +56,9 @@ export default async function handler(req, res) {
       threads: latest.threads || {},
       emojis: latest.emojis || {},
       stickers: latest.stickers || {},
-      voice: latest.voice || {}
+      voice: latest.voice || {},
+      topMessages: latest.topMessages || {},
+      topVoice: latest.topVoice || {}
     };
 
     // --- Timeline: Messages, Joins, Leaves, Boosts ---
@@ -90,16 +92,10 @@ export default async function handler(req, res) {
       };
     }
 
-    // --- Top Members, Channels, Emojis, Roles, Stickers ---
+    // --- Top Members, Channels, Emojis, Roles, Stickers, Threads, Voice ---
     const messageEvents = aggregateEvents(events, "message");
 
-    const topMembers = Object.values(
-      messageEvents.reduce((acc,e) => {
-        const username = e.data.username || e.data.userId;
-        acc[username] = (acc[username] || 0) + 1;
-        return acc;
-      }, {})
-    );
+    // Top members by messages
     const topMembersList = topN(
       messageEvents.reduce((acc, e) => {
         const username = e.data.username || e.data.userId;
@@ -108,6 +104,7 @@ export default async function handler(req, res) {
       }, {}), 10
     ).map(x => ({ username: x.key, count: x.count }));
 
+    // Top channels by messages
     const topChannelsList = topN(
       messageEvents.reduce((acc, e) => {
         const name = e.data.channelName || e.data.channelId;
@@ -116,6 +113,7 @@ export default async function handler(req, res) {
       }, {}), 10
     ).map(x => ({ name: x.key, count: x.count }));
 
+    // Top emojis
     const topEmojisList = topN(
       messageEvents.reduce((acc, e) => {
         for (const [emoji, count] of Object.entries(e.data.emojiCount || {})) {
@@ -125,6 +123,7 @@ export default async function handler(req, res) {
       }, {}), 10
     ).map(x => ({ emoji: x.key, count: x.count }));
 
+    // Top roles from snapshot
     const topRolesList = topN(
       Object.values(latest.roles || {}).reduce((acc, role) => {
         if (!role || !role.name) return acc;
@@ -133,12 +132,32 @@ export default async function handler(req, res) {
       }, {}), 10
     ).map(x => ({ role: x.key, count: x.count }));
 
+    // Top stickers
     const topStickersList = topN(
       Object.values(latest.stickers || {}).reduce((acc, sticker) => {
         acc[sticker] = (acc[sticker] || 0) + 1;
         return acc;
       }, {}), 10
     ).map(x => ({ sticker: x.key, count: x.count }));
+
+    // Top threads
+    const topThreadsList = topN(
+      Object.values(latest.threads || {}).reduce((acc, tName) => {
+        acc[tName] = (acc[tName] || 0) + 1;
+        return acc;
+      }, {}), 10
+    ).map(x => ({ thread: x.key, count: x.count }));
+
+    // Top voice members
+    const topVoiceList = topN(
+      Object.values(latest.voice || {}).reduce((acc, v) => {
+        if (!v || !v.members) return acc;
+        Object.keys(v.members).forEach(userId => {
+          acc[userId] = (acc[userId] || 0) + 1;
+        });
+        return acc;
+      }, {}), 10
+    ).map(x => ({ userId: x.key, count: x.count }));
 
     res.status(200).json({
       overview,
@@ -147,7 +166,9 @@ export default async function handler(req, res) {
       topChannels: topChannelsList,
       topEmojis: topEmojisList,
       topRoles: topRolesList,
-      topStickers: topStickersList
+      topStickers: topStickersList,
+      topThreads: topThreadsList,
+      topVoice: topVoiceList
     });
 
   } catch (err) {
