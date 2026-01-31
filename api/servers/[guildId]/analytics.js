@@ -1,15 +1,16 @@
-import mongoose from "mongoose";
-import ServerAnalytics from "../../../models/ServerAnalytics";
+import { MongoClient } from "mongodb";
 
-// -----------------------
-// Connect to Mongo (Vercel serverless safe)
-// -----------------------
-if (!mongoose.connection.readyState) {
-  mongoose.connect(process.env.MONGO_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true
-  }).then(() => console.log("✅ Mongo connected"))
-    .catch(err => console.error("❌ Mongo connection error:", err));
+let client;
+let db;
+
+// Connect to Mongo (reuse connection in Vercel serverless)
+async function connectMongo() {
+  if (!client) {
+    client = new MongoClient(process.env.MONGO_URI);
+    await client.connect();
+    db = client.db(); // uses DB from URI
+  }
+  return db;
 }
 
 export default async function handler(req, res) {
@@ -17,7 +18,9 @@ export default async function handler(req, res) {
   if (!guildId) return res.status(400).json({ error: "No guildId provided" });
 
   try {
-    const guildData = await ServerAnalytics.findOne({ discordServerId: guildId });
+    const db = await connectMongo();
+    const guildData = await db.collection("serveranalytics").findOne({ discordServerId: guildId });
+
     if (!guildData) return res.status(404).json({ error: "Guild not found" });
 
     // --- Latest snapshot overview ---
@@ -43,8 +46,9 @@ export default async function handler(req, res) {
     // --- Timeline (last 7 days) ---
     const now = Date.now();
     const sevenDays = 7 * 24 * 60 * 60 * 1000;
-    const snapshots7d = (guildData.snapshots || [])
-      .filter(s => now - new Date(s.timestamp).getTime() <= sevenDays);
+    const snapshots7d = (guildData.snapshots || []).filter(
+      s => now - new Date(s.timestamp).getTime() <= sevenDays
+    );
 
     const timeline = {
       labels: snapshots7d.map(s => new Date(s.timestamp).toISOString().slice(0, 10)),
@@ -102,6 +106,7 @@ export default async function handler(req, res) {
       topChannels,
       topEmojis
     });
+
   } catch (err) {
     console.error("❌ /api/servers/[guildId]/analytics error:", err);
     res.status(500).json({ error: "Server error" });
