@@ -1,7 +1,7 @@
 export default function handler(req, res) {
   const params = new URLSearchParams({
-    client_id: process.env.CLIENT_ID,
-    redirect_uri: process.env.REDIRECT_URI,
+    client_id: process.env.DISCORD_CLIENT_ID,   // <-- matches Vercel env
+    redirect_uri: process.env.DISCORD_REDIRECT_URI, // <-- matches Vercel env
     response_type: "code",
     scope: "identify guilds"
   });
