@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Web dashboard for Discord server analytics",
   "main": "index.js",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
     "dev": "vercel dev",
     "build": "echo 'No build needed for static frontend'",
