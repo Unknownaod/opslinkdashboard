@@ -1,6 +1,3 @@
-import fetch from "node-fetch"; // or just native fetch in newer Node
-
-// Example: environment variable BOT_TOKEN
 const BOT_TOKEN = process.env.BOT_TOKEN;
 
 export default async function handler(req, res) {
@@ -8,6 +5,7 @@ export default async function handler(req, res) {
   const match = cookie.match(/discord_token=([^;]+)/);
 
   if (!match) return res.status(401).json({ error: "Not authenticated" });
+
   const token = match[1];
 
   try {
@@ -36,9 +34,24 @@ export default async function handler(req, res) {
     }
 
     const botGuilds = await botRes.json();
+    const botGuildIds = new Set(botGuilds.map(g => g.id));
 
-    // 3️⃣ Return both
-    res.status(200).json({ userGuilds, botGuilds });
+    // 3️⃣ Cross-match
+    const inBotAndUser = [];
+    const userNotInBot = [];
+
+    userGuilds.forEach(g => {
+      if (botGuildIds.has(g.id)) {
+        inBotAndUser.push(g);
+      } else {
+        // Add bot invite link for servers the user is in but bot is not
+        g.addBotLink = `https://discord.com/oauth2/authorize?client_id=${BOT_TOKEN}&permissions=8&scope=bot&guild_id=${g.id}`;
+        userNotInBot.push(g);
+      }
+    });
+
+    // 4️⃣ Return in the format frontend expects
+    res.status(200).json({ inBotAndUser, userNotInBot });
 
   } catch (err) {
     console.error(err);
