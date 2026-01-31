@@ -4,7 +4,7 @@ let client;
 let db;
 
 // =======================
-// Mongo Connection (serverless-safe)
+// Mongo Connection
 // =======================
 async function connectMongo() {
   if (!client) {
@@ -75,69 +75,55 @@ export default async function handler(req, res) {
       topVoice: latest.topVoice || {}
     };
 
-    // =======================
-    // Timeline: 24h / 7d / 30d / overall
-    // =======================
     const now = Date.now();
-    const timeline = {};
 
+    // =======================
+    // Timeline
+    // =======================
+    const timeline = {};
     for (const [label, windowMs] of Object.entries(WINDOWS)) {
       const cutoff = windowMs === Infinity ? 0 : new Date(now - windowMs);
 
-      const windowSnapshots = await Snapshots.find({
-        guildId,
-        timestamp: { $gte: cutoff }
-      })
+      // Load snapshots in cursor mode to avoid huge memory usage
+      const windowSnapshots = [];
+      await Snapshots.find({ guildId, timestamp: { $gte: cutoff } })
         .sort({ timestamp: 1 })
-        .toArray();
+        .forEach(s => windowSnapshots.push(s));
 
-      const labels = windowSnapshots.map(s =>
-        new Date(s.timestamp).toISOString().slice(0, 10)
-      );
-
-      const messages = [];
-      const joins = [];
-      const leaves = [];
+      const labels = windowSnapshots.map(s => new Date(s.timestamp).toISOString().slice(0, 10));
+      const messages = Array(windowSnapshots.length).fill(0);
+      const joins = Array(windowSnapshots.length).fill(0);
+      const leaves = Array(windowSnapshots.length).fill(0);
       const boosts = windowSnapshots.map(s => s.boosts || 0);
 
-      // Use single aggregation to reduce DB calls
-      const eventsCursor = Events.find({
-        guildId,
-        timestamp: { $gte: cutoff }
-      });
-
+      // Aggregate events in single pass using cursor
       const typeMap = { message: [], join: [], leave: [] };
-      await eventsCursor.forEach(e => {
-        if (typeMap[e.type]) typeMap[e.type].push(new Date(e.timestamp));
-      });
+      await Events.find({ guildId, timestamp: { $gte: cutoff } })
+        .forEach(e => { if (typeMap[e.type]) typeMap[e.type].push(new Date(e.timestamp)); });
 
       for (let i = 0; i < windowSnapshots.length; i++) {
         const start = new Date(windowSnapshots[i].timestamp);
-        const end =
-          i + 1 < windowSnapshots.length
-            ? new Date(windowSnapshots[i + 1].timestamp)
-            : new Date();
+        const end = i + 1 < windowSnapshots.length ? new Date(windowSnapshots[i + 1].timestamp) : new Date();
 
-        const countEvents = (type) =>
-          (typeMap[type] || []).filter(ts => ts >= start && ts < end).length;
-
-        messages.push(countEvents("message"));
-        joins.push(countEvents("join"));
-        leaves.push(countEvents("leave"));
+        const countEvents = (type) => typeMap[type].filter(ts => ts >= start && ts < end).length;
+        messages[i] = countEvents("message");
+        joins[i] = countEvents("join");
+        leaves[i] = countEvents("leave");
       }
 
       timeline[label] = { labels, messages, joins, leaves, boosts };
     }
 
     // =======================
-    // Top Members / Channels / Emojis / Roles / Threads / Stickers / Voice
+    // Top members / channels / emojis / roles / threads / stickers / voice
     // =======================
-    const messageEvents = await Events.find({ guildId, type: "message" }).toArray();
     const memberMap = {};
     const channelMap = {};
     const emojiMap = {};
+    const voiceMap = {};
 
-    messageEvents.forEach(e => {
+    // Messages
+    await Events.find({ guildId, type: "message" }).forEach(e => {
       const userKey = `${e.data.userId}:${e.data.username}`;
       memberMap[userKey] = (memberMap[userKey] || 0) + 1;
 
@@ -149,11 +135,16 @@ export default async function handler(req, res) {
       }
     });
 
+    // Voice
+    await Events.find({ guildId, type: "voice" }).forEach(e => {
+      const key = `${e.data.userId}:${e.data.username}`;
+      voiceMap[key] = (voiceMap[key] || 0) + 1;
+    });
+
     const topMembers = topN(memberMap).map(x => {
       const [userId, username] = x.key.split(":");
       return { userId, username, count: x.count };
     });
-
     const topChannels = topN(channelMap).map(x => ({ name: x.key, count: x.count }));
     const topEmojis = topN(emojiMap).map(x => ({ emoji: x.key, count: x.count }));
 
@@ -179,13 +170,6 @@ export default async function handler(req, res) {
       }, {})
     ).map(x => ({ thread: x.key, count: x.count }));
 
-    // Voice
-    const voiceEvents = await Events.find({ guildId, type: "voice" }).toArray();
-    const voiceMap = {};
-    for (const e of voiceEvents) {
-      const key = `${e.data.userId}:${e.data.username}`;
-      voiceMap[key] = (voiceMap[key] || 0) + 1;
-    }
     const topVoice = topN(voiceMap).map(x => {
       const [userId, username] = x.key.split(":");
       return { userId, username, count: x.count };
