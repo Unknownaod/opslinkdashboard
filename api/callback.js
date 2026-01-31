@@ -3,8 +3,8 @@ export default async function handler(req, res) {
   if (!code) return res.status(400).send("Missing code");
 
   const data = new URLSearchParams({
-    client_id: process.env.CLIENT_ID,
-    client_secret: process.env.CLIENT_SECRET,
+    client_id: process.env.DISCORD_CLIENT_ID,
+    client_secret: process.env.DISCORD_CLIENT_SECRET,
     grant_type: "authorization_code",
     code,
     redirect_uri: process.env.REDIRECT_URI
