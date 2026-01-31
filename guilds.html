@@ -4,56 +4,107 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Your Servers • Discord Analytics</title>
+
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-900 text-white font-sans flex flex-col min-h-screen">
+
+<body class="bg-gray-900 text-white font-sans min-h-screen flex flex-col">
 
   <!-- Navbar -->
-  <nav class="bg-gray-800 p-4 flex justify-between items-center">
+  <nav class="bg-gray-800 px-6 py-4 flex justify-between items-center">
     <span class="font-bold text-xl">Discord Analytics</span>
-    <a href="/logout" class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded">Logout</a>
+    <a
+      href="/api/logout"
+      class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded transition"
+    >
+      Logout
+    </a>
   </nav>
 
-  <main class="flex-1 p-6">
-    <h1 class="text-3xl font-bold mb-6 text-center">Your Servers</h1>
-    <div id="guild-list" class="grid md:grid-cols-3 gap-6 max-w-6xl mx-auto">
-      <!-- Guild cards will go here -->
-    </div>
+  <!-- Main -->
+  <main class="flex-1 px-6 py-10">
+    <h1 class="text-3xl font-bold text-center mb-8">Your Servers</h1>
+
+    <!-- Status -->
+    <p
+      id="status"
+      class="text-center text-gray-400 mb-6"
+    >
+      Loading your servers…
+    </p>
+
+    <!-- Guilds -->
+    <div
+      id="guild-list"
+      class="grid gap-6 sm:grid-cols-2 md:grid-cols-3 max-w-6xl mx-auto"
+    ></div>
   </main>
 
-  <footer class="bg-gray-800 text-gray-400 p-4 text-center">
+  <!-- Footer -->
+  <footer class="bg-gray-800 text-gray-400 text-center p-4">
     &copy; 2026 Discord Analytics
   </footer>
 
   <script>
-    document.addEventListener('DOMContentLoaded', async () => {
-      const guildList = document.getElementById('guild-list');
+    async function loadGuilds() {
+      const status = document.getElementById("status");
+      const list = document.getElementById("guild-list");
 
-      // Fetch guilds the user has access to from backend
-      const response = await fetch('/api/guilds'); // returns [{id,name,icon}]
-      const guilds = await response.json();
+      try {
+        const res = await fetch("/api/guilds");
 
-      guilds.forEach(g => {
-        const card = document.createElement('div');
-        card.className = "bg-gray-700 p-4 rounded hover:bg-gray-600 transition flex flex-col items-center";
+        // Not logged in
+        if (res.status === 401) {
+          window.location.href = "/";
+          return;
+        }
 
-        const icon = document.createElement('img');
-        icon.src = g.icon ? `https://cdn.discordapp.com/icons/${g.id}/${g.icon}.png` : 'https://via.placeholder.com/80';
-        icon.className = "h-20 w-20 rounded mb-2";
+        if (!res.ok) {
+          throw new Error("Failed to load guilds");
+        }
 
-        const name = document.createElement('h2');
-        name.textContent = g.name;
-        name.className = "font-semibold text-lg text-center mb-2";
+        const guilds = await res.json();
 
-        const button = document.createElement('a');
-        button.textContent = "View Dashboard";
-        button.href = `/dashboard.html?guildId=${g.id}`;
-        button.className = "bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded mt-auto";
+        if (!guilds.length) {
+          status.textContent = "No servers found.";
+          return;
+        }
 
-        card.append(icon, name, button);
-        guildList.appendChild(card);
-      });
-    });
+        status.remove();
+
+        guilds.forEach(guild => {
+          const card = document.createElement("div");
+          card.className =
+            "bg-gray-800 rounded-lg p-6 flex flex-col items-center text-center hover:bg-gray-700 transition";
+
+          const icon = document.createElement("img");
+          icon.src = guild.icon
+            ? `https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.png`
+            : "https://cdn.discordapp.com/embed/avatars/0.png";
+          icon.alt = guild.name;
+          icon.className = "h-20 w-20 rounded-full mb-4";
+
+          const name = document.createElement("h2");
+          name.textContent = guild.name;
+          name.className = "font-semibold text-lg mb-4";
+
+          const button = document.createElement("a");
+          button.href = `/dashboard.html?guildId=${guild.id}`;
+          button.textContent = "View Dashboard";
+          button.className =
+            "mt-auto bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded transition";
+
+          card.append(icon, name, button);
+          list.appendChild(card);
+        });
+      } catch (err) {
+        console.error(err);
+        status.textContent =
+          "Something went wrong while loading your servers.";
+      }
+    }
+
+    loadGuilds();
   </script>
 
 </body>
