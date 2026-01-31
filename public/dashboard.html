@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Server Dashboard • Discord Analytics</title>
 
+  <!-- Tailwind CSS & Chart.js -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
-
 <body class="bg-gray-900 text-white font-sans min-h-screen flex flex-col">
 
   <!-- Navbar -->
@@ -21,15 +21,17 @@
     </a>
   </nav>
 
-  <main class="flex-1 px-6 py-8 max-w-7xl mx-auto w-full">
-    <p id="status" class="text-gray-400 text-center mb-6">
+  <main class="flex-1 px-6 py-8 max-w-7xl mx-auto w-full space-y-10">
+
+    <!-- Status -->
+    <p id="status" class="text-gray-400 text-center">
       Loading server analytics…
     </p>
 
     <!-- Overview -->
-    <section class="mb-10">
-      <h2 class="text-2xl font-bold mb-4">Overview</h2>
-      <div class="grid gap-6 sm:grid-cols-2 md:grid-cols-3">
+    <section>
+      <h2 class="text-2xl font-bold mb-4 border-b border-gray-700 pb-2">Overview</h2>
+      <div class="grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
         <div class="bg-gray-800 p-6 rounded text-center">
           <h3 class="text-gray-400">Members</h3>
           <p id="members-count" class="text-3xl font-bold">—</p>
@@ -50,28 +52,57 @@
     </section>
 
     <!-- Timeline -->
-    <section class="mb-10">
-      <h2 class="text-2xl font-bold mb-4">Messages Timeline</h2>
+    <section>
+      <h2 class="text-2xl font-bold mb-4 border-b border-gray-700 pb-2">Messages Timeline</h2>
       <div class="bg-gray-800 p-4 rounded">
         <canvas id="messagesChart"></canvas>
       </div>
     </section>
 
-    <!-- Lists -->
-    <section class="grid gap-8 md:grid-cols-3">
-      <div>
-        <h2 class="text-xl font-bold mb-3">Top Members</h2>
-        <ul id="top-members" class="space-y-3"></ul>
-      </div>
-      <div>
-        <h2 class="text-xl font-bold mb-3">Top Channels</h2>
-        <ul id="top-channels" class="space-y-3"></ul>
-      </div>
-      <div>
-        <h2 class="text-xl font-bold mb-3">Top Emojis</h2>
-        <ul id="top-emojis" class="space-y-3"></ul>
+    <!-- Top Stats -->
+    <section>
+      <h2 class="text-2xl font-bold mb-6 border-b border-gray-700 pb-2">Top Stats</h2>
+      <div class="grid gap-6 md:grid-cols-3 lg:grid-cols-6">
+
+        <!-- Top Members -->
+        <div>
+          <h3 class="text-xl font-semibold mb-3">Top Members</h3>
+          <ul id="top-members" class="space-y-2 max-h-64 overflow-y-auto"></ul>
+        </div>
+
+        <!-- Top Channels -->
+        <div>
+          <h3 class="text-xl font-semibold mb-3">Top Channels</h3>
+          <ul id="top-channels" class="space-y-2 max-h-64 overflow-y-auto"></ul>
+        </div>
+
+        <!-- Top Emojis -->
+        <div>
+          <h3 class="text-xl font-semibold mb-3">Top Emojis</h3>
+          <ul id="top-emojis" class="space-y-2 max-h-64 overflow-y-auto"></ul>
+        </div>
+
+        <!-- Top Roles -->
+        <div>
+          <h3 class="text-xl font-semibold mb-3">Top Roles</h3>
+          <ul id="top-roles" class="space-y-2 max-h-64 overflow-y-auto"></ul>
+        </div>
+
+        <!-- Top Stickers -->
+        <div>
+          <h3 class="text-xl font-semibold mb-3">Top Stickers</h3>
+          <ul id="top-stickers" class="space-y-2 max-h-64 overflow-y-auto"></ul>
+        </div>
+
+        <!-- Top Voice Channels -->
+        <div>
+          <h3 class="text-xl font-semibold mb-3">Top Voice Channels</h3>
+          <ul id="top-voice" class="space-y-2 max-h-64 overflow-y-auto"></ul>
+        </div>
+
       </div>
     </section>
+
   </main>
 
   <footer class="bg-gray-800 text-gray-400 text-center p-4">
@@ -89,7 +120,6 @@
         const res = await fetch(`/api/servers/${guildId}/analytics`);
         if (!res.ok) throw new Error("Failed to fetch analytics");
         const data = await res.json();
-
         const o = data.overview;
 
         // Header
@@ -117,26 +147,70 @@
             },
             options: {
               responsive: true,
-              plugins: { legend: { display: false } }
+              plugins: { legend: { display: false } },
+              scales: { y: { beginAtZero: true } }
             }
           });
         }
 
-        // Helper for lists
-        function fillList(el, items, format) {
+        // Fill lists helper
+        function fillList(el, items, type) {
           el.innerHTML = "";
-          if (!items?.length) return el.innerHTML = `<li class="text-gray-500">No data</li>`;
-          items.forEach(i => {
+          if (!items?.length) {
+            el.innerHTML = `<li class="text-gray-500 p-2">No data</li>`;
+            return;
+          }
+
+          items.forEach(item => {
             const li = document.createElement("li");
-            li.className = "bg-gray-800 p-3 rounded";
-            li.textContent = format(i);
+            li.className = "bg-gray-700 px-3 py-2 rounded flex items-center gap-2 hover:bg-gray-600 transition";
+
+            switch(type) {
+              case "member":
+                li.innerHTML = `
+                  <img src="https://cdn.discordapp.com/avatars/${item.id || item.username}/${item.avatar || '0'}.png?size=32" 
+                       class="w-8 h-8 rounded-full object-cover" 
+                       onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'" />
+                  <span>${item.username}</span>
+                  <span class="ml-auto text-gray-300">${item.count} msgs</span>
+                `;
+                break;
+
+              case "channel":
+                li.innerHTML = `# ${item.name} <span class="ml-auto text-gray-300">${item.count} msgs</span>`;
+                break;
+
+              case "emoji":
+                li.innerHTML = `${item.emoji} <span class="ml-auto text-gray-300">${item.count} uses</span>`;
+                break;
+
+              case "role":
+                li.innerHTML = `<span class="px-2 py-1 rounded" style="background-color:${item.color || '#666'}">${item.name}</span> <span class="ml-auto text-gray-300">${item.count} members</span>`;
+                break;
+
+              case "sticker":
+                li.innerHTML = `${item.sticker} <span class="ml-auto text-gray-300">${item.count} uses</span>`;
+                break;
+
+              case "voice":
+                li.innerHTML = `${item.name} <span class="ml-auto text-gray-300">${item.count} users</span>`;
+                break;
+
+              default:
+                li.textContent = JSON.stringify(item);
+            }
+
             el.appendChild(li);
           });
         }
 
-        fillList(document.getElementById("top-members"), data.topMembers, m => `${m.username} — ${m.count} msgs`);
-        fillList(document.getElementById("top-channels"), data.topChannels, c => `#${c.name} — ${c.count} msgs`);
-        fillList(document.getElementById("top-emojis"), data.topEmojis, e => `${e.emoji} × ${e.count}`);
+        // Populate all lists
+        fillList(document.getElementById("top-members"), data.topMembers, "member");
+        fillList(document.getElementById("top-channels"), data.topChannels, "channel");
+        fillList(document.getElementById("top-emojis"), data.topEmojis, "emoji");
+        fillList(document.getElementById("top-roles"), data.topRoles, "role");
+        fillList(document.getElementById("top-stickers"), data.topStickers, "sticker");
+        fillList(document.getElementById("top-voice"), data.topVoiceChannels, "voice");
 
       } catch (err) {
         console.error(err);
