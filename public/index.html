@@ -1,59 +1,90 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Discord Analytics • Track Your Server</title>
-
-  <!-- Tailwind CDN -->
-  <script src="https://cdn.tailwindcss.com"></script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Discord Analytics • Professional Server Tracking</title>
+<script src="https://cdn.tailwindcss.com"></script>
 </head>
 
 <body class="bg-gradient-to-br from-black via-zinc-900 to-black text-white font-sans">
 
-  <!-- HERO -->
-  <section class="text-center py-32 px-4">
-    <h1 class="text-5xl md:text-6xl font-extrabold mb-6 text-emerald-400 drop-shadow-lg">
-      Know Everything About Your Discord Server
-    </h1>
+<!-- NAVBAR -->
+<nav class="bg-zinc-900 bg-opacity-80 backdrop-blur-md px-8 py-4 flex justify-between items-center fixed w-full z-50 shadow-md">
+  <span class="text-2xl font-bold text-emerald-400">Discord Analytics</span>
+  <div class="flex items-center gap-4">
+    <a href="/#features" class="hover:text-emerald-400 transition">Features</a>
+    <a href="/#cta" class="bg-emerald-500 hover:bg-emerald-600 px-4 py-2 rounded-lg transition">Get Started</a>
+  </div>
+</nav>
 
-    <p class="text-gray-300 text-lg md:text-xl max-w-3xl mx-auto mb-12">
-      Track messages, joins, leaves, boosts, emojis, voice activity, threads, 
-      top members, and every detail in real-time.
-    </p>
+<!-- HERO SECTION -->
+<section class="flex flex-col items-center justify-center text-center py-40 px-4 relative">
+  <h1 class="text-5xl md:text-6xl font-extrabold text-emerald-400 drop-shadow-lg mb-6">
+    Know Everything About Your Discord Server
+  </h1>
+  <p class="text-gray-300 text-lg md:text-xl max-w-3xl mb-12">
+    Track messages, joins, leaves, boosts, emojis, threads, voice activity, and top members in real-time. 
+    Professional analytics designed for large and small servers alike.
+  </p>
+  <div class="flex gap-6 flex-wrap justify-center">
+    <button id="login-btn" class="bg-emerald-500 hover:bg-emerald-600 px-8 py-4 rounded-2xl text-lg font-semibold shadow-lg transition-all duration-300 hover:scale-105">
+      Login with Discord
+    </button>
+    <a href="https://discord.com/oauth2/authorize?client_id=1466430352238055587&permissions=2199023779840&scope=bot" target="_blank" class="bg-yellow-500 hover:bg-yellow-600 px-8 py-4 rounded-2xl text-lg font-semibold shadow-lg transition-all duration-300 hover:scale-105">
+      Add the Bot
+    </a>
+  </div>
+</section>
 
-    <div class="flex justify-center gap-6 flex-wrap">
-      <!-- Login Button -->
-      <button
-        id="login-btn"
-        class="bg-emerald-500 hover:bg-emerald-600 text-white px-8 py-4 rounded-2xl text-lg font-semibold shadow-lg hover:shadow-2xl transition-all duration-300"
-      >
-        Login with Discord
-      </button>
+<!-- FEATURES SECTION -->
+<section id="features" class="max-w-7xl mx-auto py-20 px-6 grid md:grid-cols-3 gap-8">
+  <div class="bg-zinc-800 rounded-xl p-8 shadow-lg hover:shadow-2xl transition">
+    <h3 class="text-xl font-semibold mb-4 text-emerald-400">Real-Time Analytics</h3>
+    <p class="text-gray-300 text-sm">See live updates for messages, joins, leaves, boosts, and voice activity with automatic snapshots every minute.</p>
+  </div>
 
-      <!-- Bot Invite Button -->
-      <a
-        href="https://discord.com/oauth2/authorize?client_id=1466430352238055587&permissions=2199023779840&scope=bot"
-        target="_blank"
-        class="bg-yellow-500 hover:bg-yellow-600 text-white px-8 py-4 rounded-2xl text-lg font-semibold shadow-lg hover:shadow-2xl transition-all duration-300"
-      >
-        Add the Bot
-      </a>
-    </div>
-  </section>
+  <div class="bg-zinc-800 rounded-xl p-8 shadow-lg hover:shadow-2xl transition">
+    <h3 class="text-xl font-semibold mb-4 text-emerald-400">Top Members & Emojis</h3>
+    <p class="text-gray-300 text-sm">Identify your most active members, top channels, and emoji usage to understand community engagement better.</p>
+  </div>
 
-  <!-- FOOTER -->
-  <footer class="bg-zinc-800 text-gray-400 text-center py-6 mt-20">
-    &copy; 2026 Discord Analytics • Not affiliated with Discord
-  </footer>
+  <div class="bg-zinc-800 rounded-xl p-8 shadow-lg hover:shadow-2xl transition">
+    <h3 class="text-xl font-semibold mb-4 text-emerald-400">Server Insights</h3>
+    <p class="text-gray-300 text-sm">Track server growth, boosts, and member activity over different time windows (24h, 7d, 30d, overall).</p>
+  </div>
+</section>
 
-  <!-- SCRIPT -->
-  <script>
-    document.getElementById("login-btn").addEventListener("click", () => {
-      // Start Discord OAuth via backend
-      window.location.href = "/api/login";
-    });
-  </script>
+<!-- CTA SECTION -->
+<section id="cta" class="text-center py-20 px-4">
+  <h2 class="text-4xl font-bold text-emerald-400 mb-6">Get Started Today</h2>
+  <p class="text-gray-300 mb-8 max-w-2xl mx-auto">
+    Connect your Discord account, add the bot to your servers, and start seeing analytics in a modern, professional dashboard.
+  </p>
+  <div class="flex justify-center gap-6 flex-wrap">
+    <button id="login-btn-cta" class="bg-emerald-500 hover:bg-emerald-600 px-8 py-4 rounded-2xl text-lg font-semibold shadow-lg transition-all duration-300 hover:scale-105">
+      Login with Discord
+    </button>
+    <a href="https://discord.com/oauth2/authorize?client_id=1466430352238055587&permissions=2199023779840&scope=bot" target="_blank" class="bg-yellow-500 hover:bg-yellow-600 px-8 py-4 rounded-2xl text-lg font-semibold shadow-lg transition-all duration-300 hover:scale-105">
+      Add the Bot
+    </a>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer class="bg-zinc-900 text-gray-400 text-center py-6">
+  &copy; 2026 Discord Analytics • Not affiliated with Discord
+</footer>
+
+<!-- SCRIPT -->
+<script>
+document.getElementById("login-btn").addEventListener("click", () => {
+  window.location.href = "/api/login";
+});
+document.getElementById("login-btn-cta").addEventListener("click", () => {
+  window.location.href = "/api/login";
+});
+</script>
 
 </body>
 </html>
