@@ -1,275 +1,240 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Server Dashboard • Discord Analytics</title>
+
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 </head>
-<body class="min-h-screen bg-gradient-to-br from-black via-zinc-900 to-black text-white overflow-x-hidden font-sans">
+<body class="min-h-screen bg-gradient-to-br from-black via-zinc-900 to-black text-white font-sans">
 
 <!-- NAVBAR -->
 <nav class="flex items-center justify-between px-10 py-6 border-b border-zinc-800">
   <div class="text-xl font-semibold tracking-wide">Discord Analytics</div>
-  <div class="flex items-center gap-8 text-sm">
-    <a href="/guilds.html" class="hover:opacity-80">Servers</a>
-    <a href="/" class="hover:opacity-80">Home</a>
+  <div class="flex items-center gap-8 text-sm text-zinc-300">
+    <a href="/guilds.html" class="hover:text-white">Servers</a>
+    <a href="/" class="hover:text-white">Home</a>
   </div>
 </nav>
 
 <!-- DASHBOARD -->
 <section class="px-10 py-10 max-w-7xl mx-auto">
 
-  <!-- Header -->
-  <div class="flex items-center gap-6 mb-6">
-    <img id="serverIcon" src="" class="w-20 h-20 rounded-lg border border-zinc-700" alt="Server Icon">
+  <!-- HEADER -->
+  <div class="flex items-center gap-6 mb-10">
+    <img id="serverIcon" class="w-20 h-20 rounded-xl border border-zinc-700 bg-zinc-800" />
     <div>
-      <h1 id="serverName" class="text-4xl font-bold">Loading...</h1>
-      <p id="serverDesc" class="text-zinc-400"></p>
-      <a id="serverInvite" href="#" target="_blank" class="text-blue-400 underline">Join Server</a>
+      <h1 id="serverName" class="text-4xl font-bold tracking-tight">Loading…</h1>
+      <p class="text-zinc-400 text-sm">Live analytics & activity tracking</p>
     </div>
   </div>
 
-  <!-- STATUS CARDS -->
-  <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-    <div class="p-4 rounded border border-zinc-700 bg-zinc-900/50">
-      <h2 class="font-semibold mb-2">Members</h2>
-      <p id="membersTotal">0</p>
-      <p class="text-sm text-zinc-400">
-        Humans: <span id="membersHumans">0</span> | Bots: <span id="membersBots">0</span>
-      </p>
-      <p class="text-sm text-zinc-400">
-        Online: <span id="membersOnline">0</span> | Idle: <span id="membersIdle">0</span> | DND: <span id="membersDND">0</span> | Offline: <span id="membersOffline">0</span>
-      </p>
-      <p class="text-sm text-zinc-400">
-        Joins: <span id="membersJoins">0</span> | Leaves: <span id="membersLeaves">0</span>
+  <!-- OVERVIEW CARDS -->
+  <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
+
+    <div class="stat">
+      <p class="label">Members</p>
+      <p id="membersTotal" class="value">0</p>
+      <p class="sub">
+        Humans <span id="membersHumans">0</span> · Bots <span id="membersBots">0</span>
       </p>
     </div>
 
-    <div class="p-4 rounded border border-zinc-700 bg-zinc-900/50">
-      <h2 class="font-semibold mb-2">Channels & Boosts</h2>
-      <p>Text: <span id="channelsText">0</span> | Voice: <span id="channelsVoice">0</span></p>
-      <p>Categories: <span id="channelsCat">0</span> | Threads: <span id="channelsThreads">0</span></p>
-      <p>Boosts: <span id="serverBoosts">0</span></p>
+    <div class="stat">
+      <p class="label">Presence</p>
+      <p class="value">
+        <span id="membersOnline">0</span> online
+      </p>
+      <p class="sub">
+        Idle <span id="membersIdle">0</span> · DND <span id="membersDND">0</span> · Offline <span id="membersOffline">0</span>
+      </p>
     </div>
 
-    <div class="p-4 rounded border border-zinc-700 bg-zinc-900/50">
-      <h2 class="font-semibold mb-2">Top Members</h2>
-      <ol id="topMembers" class="list-decimal list-inside text-sm text-zinc-300 max-h-64 overflow-y-auto"></ol>
+    <div class="stat">
+      <p class="label">Boosts</p>
+      <p id="serverBoosts" class="value">0</p>
+      <p class="sub">Server boosts</p>
     </div>
+
+    <div class="stat">
+      <p class="label">Polling</p>
+      <p class="value text-emerald-400">Live</p>
+      <p class="sub">Updates every 20s</p>
+    </div>
+
   </div>
 
-  <!-- Top Lists -->
-  <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-    <div class="p-4 rounded border border-zinc-700 bg-zinc-900/50">
-      <h2 class="font-semibold mb-2">Top Channels</h2>
-      <ol id="topChannels" class="list-decimal list-inside text-sm text-zinc-300 max-h-64 overflow-y-auto"></ol>
+  <!-- TOP LISTS -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
+
+    <div class="card">
+      <h2 class="title">Top Members (Messages)</h2>
+      <ol id="topMembers" class="list-decimal list-inside space-y-1 text-sm text-zinc-300"></ol>
     </div>
-    <div class="p-4 rounded border border-zinc-700 bg-zinc-900/50">
-      <h2 class="font-semibold mb-2">Top Emojis</h2>
-      <ol id="topEmojis" class="list-decimal list-inside text-sm text-zinc-300 max-h-64 overflow-y-auto"></ol>
+
+    <div class="card">
+      <h2 class="title">Top Channels</h2>
+      <ol id="topChannels" class="list-decimal list-inside space-y-1 text-sm text-zinc-300"></ol>
     </div>
-    <div class="p-4 rounded border border-zinc-700 bg-zinc-900/50">
-      <h2 class="font-semibold mb-2">Top Roles</h2>
-      <ol id="topRoles" class="list-decimal list-inside text-sm text-zinc-300 max-h-64 overflow-y-auto"></ol>
+
+    <div class="card">
+      <h2 class="title">Top Emojis</h2>
+      <ol id="topEmojis" class="list-decimal list-inside space-y-1 text-sm text-zinc-300"></ol>
     </div>
-    <div class="p-4 rounded border border-zinc-700 bg-zinc-900/50">
-      <h2 class="font-semibold mb-2">Top Stickers</h2>
-      <ol id="topStickers" class="list-decimal list-inside text-sm text-zinc-300 max-h-64 overflow-y-auto"></ol>
+
+    <div class="card">
+      <h2 class="title">Top Voice Activity</h2>
+      <ol id="topVoice" class="list-decimal list-inside space-y-1 text-sm text-zinc-300"></ol>
     </div>
-    <div class="p-4 rounded border border-zinc-700 bg-zinc-900/50">
-      <h2 class="font-semibold mb-2">Top Voice Channels</h2>
-      <ol id="topVoiceChannels" class="list-decimal list-inside text-sm text-zinc-300 max-h-64 overflow-y-auto"></ol>
-    </div>
-    <div class="p-4 rounded border border-zinc-700 bg-zinc-900/50">
-      <h2 class="font-semibold mb-2">Top Threads</h2>
-      <ol id="topThreads" class="list-decimal list-inside text-sm text-zinc-300 max-h-64 overflow-y-auto"></ol>
-    </div>
+
   </div>
 
-  <!-- Charts -->
-  <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-    <div class="p-4 rounded border border-zinc-700 bg-zinc-900/50">
-      <h2 class="font-semibold mb-2">Messages per Member</h2>
+  <!-- CHARTS -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
+
+    <div class="card h-80">
+      <h2 class="title">Messages per Member</h2>
       <canvas id="msgChart"></canvas>
     </div>
-    <div class="p-4 rounded border border-zinc-700 bg-zinc-900/50">
-      <h2 class="font-semibold mb-2">Presence Distribution</h2>
+
+    <div class="card h-80">
+      <h2 class="title">Presence Distribution</h2>
       <canvas id="presenceChart"></canvas>
     </div>
-  </div>
 
-  <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-    <div class="p-4 rounded border border-zinc-700 bg-zinc-900/50">
-      <h2 class="font-semibold mb-2">Roles Usage</h2>
-      <canvas id="rolesChart"></canvas>
-    </div>
-    <div class="p-4 rounded border border-zinc-700 bg-zinc-900/50">
-      <h2 class="font-semibold mb-2">Voice Channels Usage</h2>
-      <canvas id="voiceChart"></canvas>
-    </div>
-  </div>
-
-  <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-    <div class="p-4 rounded border border-zinc-700 bg-zinc-900/50">
-      <h2 class="font-semibold mb-2">Threads Usage</h2>
-      <canvas id="threadsChart"></canvas>
-    </div>
-  </div>
-
-  <!-- Comments -->
-  <div class="p-4 rounded border border-zinc-700 bg-zinc-900/50 mb-6">
-    <h2 class="font-semibold mb-2">Recent Events</h2>
-    <div id="commentsContainer" class="flex flex-col gap-3 max-h-64 overflow-y-auto"></div>
   </div>
 
 </section>
 
-<footer class="px-10 py-10 border-t border-zinc-800 text-sm text-zinc-400 flex justify-between">
+<footer class="px-10 py-8 border-t border-zinc-800 text-xs text-zinc-500 flex justify-between">
   <span>© 2026 Discord Analytics</span>
   <span>Not affiliated with Discord</span>
 </footer>
 
+<!-- STYLES -->
+<style>
+.stat {
+  padding: 1.25rem;
+  border-radius: 0.75rem;
+  border: 1px solid #27272a;
+  background: rgba(24,24,27,0.6);
+}
+.stat .label {
+  font-size: .75rem;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: #a1a1aa;
+}
+.stat .value {
+  font-size: 2rem;
+  font-weight: 700;
+}
+.stat .sub {
+  font-size: .75rem;
+  color: #71717a;
+}
+
+.card {
+  padding: 1.25rem;
+  border-radius: 0.75rem;
+  border: 1px solid #27272a;
+  background: rgba(24,24,27,0.6);
+}
+.card .title {
+  font-weight: 600;
+  margin-bottom: .75rem;
+}
+</style>
+
+<!-- SCRIPT -->
 <script>
 const params = new URLSearchParams(window.location.search);
-const guildId = params.get('guildId');
+const guildId = params.get("guildId");
 
-let msgChart, presenceChart, rolesChart, voiceChart, threadsChart;
+let msgChart, presenceChart;
 
 async function fetchData() {
-  try {
-    if(!guildId) return window.location.href = '/guilds.html';
-    const res = await fetch(`/api/servers/${guildId}/analytics`);
-    if(!res.ok) throw new Error('Failed to fetch analytics');
-    const data = await res.json();
-    renderDashboard(data);
-  } catch(err) {
-    console.error(err);
-    alert('Failed to load dashboard data.');
-  }
+  if (!guildId) return location.href = "/guilds.html";
+  const res = await fetch(`/api/servers/${guildId}/analytics`);
+  if (!res.ok) throw new Error("Fetch failed");
+  return res.json();
 }
 
-function renderDashboard(data) {
-  const o = data.overview;
-
-  // Header
-  document.getElementById('serverName').textContent = o.name;
-  document.getElementById('serverIcon').src = o.iconURL || 'https://cdn.discordapp.com/embed/avatars/0.png';
-  document.getElementById('serverDesc').textContent = o.description || '';
-  document.getElementById('serverInvite').href = o.invite || '#';
-
-  // Members
-  document.getElementById('membersTotal').textContent = o.members;
-  document.getElementById('membersHumans').textContent = o.humans;
-  document.getElementById('membersBots').textContent = o.bots;
-  document.getElementById('membersOnline').textContent = o.online;
-  document.getElementById('membersIdle').textContent = o.idle;
-  document.getElementById('membersDND').textContent = o.dnd;
-  document.getElementById('membersOffline').textContent = o.offline;
-  document.getElementById('membersJoins').textContent = o.joins || 0;
-  document.getElementById('membersLeaves').textContent = o.leaves || 0;
-
-  // Channels
-  document.getElementById('channelsText').textContent = o.channels.text || 0;
-  document.getElementById('channelsVoice').textContent = o.channels.voice || 0;
-  document.getElementById('channelsCat').textContent = o.channels.categories || 0;
-  document.getElementById('channelsThreads').textContent = o.channels.threads || 0;
-  document.getElementById('serverBoosts').textContent = o.boosts || 0;
-
-  // Top Lists
-  fillList('topMembers', data.topMembers);
-  fillList('topChannels', data.topChannels);
-  fillList('topEmojis', data.topEmojis);
-  fillList('topRoles', data.topRoles);
-  fillList('topStickers', data.topStickers);
-  fillList('topVoiceChannels', data.topVoice);
-  fillList('topThreads', data.topThreads);
-
-  // Charts
-  renderCharts(data);
-
-  // Recent Events
-  const commentsContainer = document.getElementById('commentsContainer');
-  commentsContainer.innerHTML = '';
-  (data.events||[]).slice(-10).reverse().forEach(ev=>{
-    const div = document.createElement('div');
-    div.className='p-2 border-b border-zinc-700 text-sm';
-    div.textContent = `[${new Date(ev.timestamp).toLocaleString()}] ${ev.type} by ${ev.data?.username || ev.data?.userId || 'N/A'}`;
-    commentsContainer.appendChild(div);
-  });
-}
-
-function fillList(id, items){
+function fillList(id, items, format) {
   const el = document.getElementById(id);
-  el.innerHTML = '';
-  if(!items?.length) return el.innerHTML='<li class="text-zinc-400">No data</li>';
-  items.forEach(item=>{
-    const li = document.createElement('li');
-    li.textContent = `${item.key} (${item.count})`;
+  el.innerHTML = "";
+  if (!items?.length) {
+    el.innerHTML = "<li class='text-zinc-500'>No data</li>";
+    return;
+  }
+  items.forEach(i => {
+    const li = document.createElement("li");
+    li.textContent = format(i);
     el.appendChild(li);
   });
 }
 
-function renderCharts(data){
-  // Messages per Member
-  const memberLabels = data.topMembers.map(m=>m.key);
-  const memberValues = data.topMembers.map(m=>m.count);
-  if(msgChart) msgChart.destroy();
-  msgChart = new Chart(document.getElementById('msgChart'),{
-    type:'bar',
-    data:{labels:memberLabels,datasets:[{label:'Messages',data:memberValues,backgroundColor:'rgba(59,130,246,0.7)'}]},
-    options:{plugins:{legend:{display:false}},responsive:true,maintainAspectRatio:false}
+function renderCharts(data) {
+  if (msgChart) msgChart.destroy();
+  msgChart = new Chart(document.getElementById("msgChart"), {
+    type: "bar",
+    data: {
+      labels: data.topMembers.map(m => m.username),
+      datasets: [{
+        data: data.topMembers.map(m => m.count)
+      }]
+    },
+    options: { plugins: { legend: { display: false } } }
   });
 
-  // Presence
-  const presenceData = [data.overview.online, data.overview.idle, data.overview.dnd, data.overview.offline];
-  if(presenceChart) presenceChart.destroy();
-  presenceChart = new Chart(document.getElementById('presenceChart'),{
-    type:'doughnut',
-    data:{labels:['Online','Idle','DND','Offline'],datasets:[{data:presenceData,backgroundColor:['#10B981','#FACC15','#F87171','#6B7280']}]},
-    options:{plugins:{legend:{labels:{color:'#fff'}}},responsive:true,maintainAspectRatio:false}
+  if (presenceChart) presenceChart.destroy();
+  presenceChart = new Chart(document.getElementById("presenceChart"), {
+    type: "doughnut",
+    data: {
+      labels: ["Online", "Idle", "DND", "Offline"],
+      datasets: [{
+        data: [
+          data.overview.online,
+          data.overview.idle,
+          data.overview.dnd,
+          data.overview.offline
+        ]
+      }]
+    }
   });
-
-  // Roles
-  if(data.topRoles){
-    const labels = data.topRoles.map(r=>r.key);
-    const values = data.topRoles.map(r=>r.count);
-    if(rolesChart) rolesChart.destroy();
-    rolesChart = new Chart(document.getElementById('rolesChart'),{
-      type:'bar',
-      data:{labels, datasets:[{label:'Members', data:values, backgroundColor:'rgba(139,92,246,0.7)'}]},
-      options:{plugins:{legend:{display:false}},responsive:true,maintainAspectRatio:false}
-    });
-  }
-
-  // Voice
-  if(data.topVoice){
-    const labels = data.topVoice.map(v=>v.key);
-    const values = data.topVoice.map(v=>v.count);
-    if(voiceChart) voiceChart.destroy();
-    voiceChart = new Chart(document.getElementById('voiceChart'),{
-      type:'bar',
-      data:{labels,datasets:[{label:'Users',data:values,backgroundColor:'rgba(6,182,212,0.7)'}]},
-      options:{plugins:{legend:{display:false}},responsive:true,maintainAspectRatio:false}
-    });
-  }
-
-  // Threads
-  if(data.topThreads){
-    const labels = data.topThreads.map(t=>t.key);
-    const values = data.topThreads.map(t=>t.count);
-    if(threadsChart) threadsChart.destroy();
-    threadsChart = new Chart(document.getElementById('threadsChart'),{
-      type:'bar',
-      data:{labels,datasets:[{label:'Messages',data:values,backgroundColor:'rgba(245,158,11,0.7)'}]},
-      options:{plugins:{legend:{display:false}},responsive:true,maintainAspectRatio:false}
-    });
-  }
 }
 
-fetchData();
-setInterval(fetchData,20000);
+async function render() {
+  const data = await fetchData();
+
+  const o = data.overview;
+  document.getElementById("serverName").textContent = o.name;
+  document.getElementById("serverIcon").src =
+    o.iconURL || "https://cdn.discordapp.com/embed/avatars/0.png";
+
+  membersTotal.textContent = o.members;
+  membersHumans.textContent = o.humans;
+  membersBots.textContent = o.bots;
+  membersOnline.textContent = o.online;
+  membersIdle.textContent = o.idle;
+  membersDND.textContent = o.dnd;
+  membersOffline.textContent = o.offline;
+  serverBoosts.textContent = o.boosts;
+
+  fillList("topMembers", data.topMembers, m => `${m.username} (${m.count})`);
+  fillList("topChannels", data.topChannels, c => `${c.name} (${c.count})`);
+  fillList("topEmojis", data.topEmojis, e => `${e.emoji} (${e.count})`);
+  fillList("topVoice", data.topVoice, v => `${v.username} (${v.count})`);
+
+  renderCharts(data);
+}
+
+render();
+setInterval(render, 20000);
 </script>
+
 </body>
 </html>
