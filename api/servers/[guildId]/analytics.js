@@ -3,7 +3,9 @@ import { MongoClient } from "mongodb";
 let client;
 let db;
 
-// Connect to Mongo (reuse connection in serverless)
+// =======================
+// Mongo Connection (serverless-safe)
+// =======================
 async function connectMongo() {
   if (!client) {
     client = new MongoClient(process.env.MONGO_URI);
@@ -13,7 +15,9 @@ async function connectMongo() {
   return db;
 }
 
-// Helper: get top N items from a map
+// =======================
+// Helpers
+// =======================
 function topN(map, n = 10) {
   return Object.entries(map)
     .sort((a, b) => b[1] - a[1])
@@ -21,30 +25,41 @@ function topN(map, n = 10) {
     .map(([key, count]) => ({ key, count }));
 }
 
+const WINDOWS = {
+  "24h": 24 * 60 * 60 * 1000,
+  "7d": 7 * 24 * 60 * 60 * 1000,
+  "30d": 30 * 24 * 60 * 60 * 1000
+};
+
+// =======================
+// API Handler
+// =======================
 export default async function handler(req, res) {
   const { guildId } = req.query;
-  if (!guildId) return res.status(400).json({ error: "No guildId provided" });
+  if (!guildId) {
+    return res.status(400).json({ error: "No guildId provided" });
+  }
 
   try {
     const db = await connectMongo();
-    const col = db.collection("serveranalytics");
 
-    const guild = await col.findOne(
-      { discordServerId: guildId },
-      { projection: { snapshots: 1, events: 1, name: 1 } }
-    );
-    if (!guild) return res.status(404).json({ error: "Guild not found" });
+    const Events = db.collection("events");
+    const Snapshots = db.collection("snapshots");
 
-    const snapshots = guild.snapshots || [];
-    const events = guild.events || [];
+    // =======================
+    // Latest snapshot (overview)
+    // =======================
+    const latest = await Snapshots.find({ guildId })
+      .sort({ timestamp: -1 })
+      .limit(1)
+      .next();
 
-    const latest = snapshots[snapshots.length - 1] || {};
+    if (!latest) {
+      return res.status(404).json({ error: "No snapshot data found" });
+    }
 
-    // -------------------------
-    // Overview
-    // -------------------------
     const overview = {
-      name: latest.name || guild.name || "Unknown Guild",
+      name: latest.name || "Unknown Guild",
       iconURL: latest.iconURL || null,
       members: latest.members || 0,
       humans: latest.humans || 0,
@@ -53,161 +68,144 @@ export default async function handler(req, res) {
       online: latest.online || 0,
       idle: latest.idle || 0,
       dnd: latest.dnd || 0,
-      offline: latest.offline || 0,
-      channels: latest.channels || {},
-      roles: latest.roles || {},
-      threads: latest.threads || {},
-      emojis: latest.emojis || {},
-      stickers: latest.stickers || {},
-      voice: latest.voice || {},
-      topMessages: latest.topMessages || {},
-      topReactions: latest.topReactions || {},
-      topVoice: latest.topVoice || {}
+      offline: latest.offline || 0
     };
 
-    // -------------------------
-    // Timeline (24h, 7d, 30d)
-    // -------------------------
+    // =======================
+    // Timeline (messages / joins / leaves / boosts)
+    // =======================
     const now = Date.now();
-    const WINDOWS = {
-      "24h": 24 * 60 * 60 * 1000,
-      "7d": 7 * 24 * 60 * 60 * 1000,
-      "30d": 30 * 24 * 60 * 60 * 1000
-    };
     const timeline = {};
 
-    for (const [label, ms] of Object.entries(WINDOWS)) {
-      const cutoff = new Date(now - ms).getTime();
-      const filtered = events.filter(e => new Date(e.timestamp).getTime() >= cutoff);
+    for (const [label, windowMs] of Object.entries(WINDOWS)) {
+      const cutoff = new Date(now - windowMs);
+
+      const windowSnapshots = await Snapshots.find({
+        guildId,
+        timestamp: { $gte: cutoff }
+      })
+        .sort({ timestamp: 1 })
+        .toArray();
+
+      const labels = windowSnapshots.map(s =>
+        new Date(s.timestamp).toISOString().slice(0, 10)
+      );
+
+      const messages = [];
+      const joins = [];
+      const leaves = [];
+
+      for (let i = 0; i < windowSnapshots.length; i++) {
+        const start = new Date(windowSnapshots[i].timestamp);
+        const end =
+          windowSnapshots[i + 1]
+            ? new Date(windowSnapshots[i + 1].timestamp)
+            : new Date();
+
+        const [msgCount, joinCount, leaveCount] = await Promise.all([
+          Events.countDocuments({
+            guildId,
+            type: "message",
+            timestamp: { $gte: start, $lt: end }
+          }),
+          Events.countDocuments({
+            guildId,
+            type: "join",
+            timestamp: { $gte: start, $lt: end }
+          }),
+          Events.countDocuments({
+            guildId,
+            type: "leave",
+            timestamp: { $gte: start, $lt: end }
+          })
+        ]);
+
+        messages.push(msgCount);
+        joins.push(joinCount);
+        leaves.push(leaveCount);
+      }
 
       timeline[label] = {
-        messages: filtered.filter(e => e.type === "message").length,
-        joins: filtered.filter(e => e.type === "join").length,
-        leaves: filtered.filter(e => e.type === "leave").length,
-        boosts: filtered.filter(e => e.type === "boost").length
+        labels,
+        messages,
+        joins,
+        leaves,
+        boosts: windowSnapshots.map(s => s.boosts || 0)
       };
     }
 
-    // -------------------------
-    // Top Members by messages
-    // -------------------------
-    const topMembers = topN(
-      events
-        .filter(e => e.type === "message" && e.data?.userId)
-        .reduce((acc, e) => {
-          const name = e.data.username || e.data.userId;
-          acc[name] = (acc[name] || 0) + 1;
-          return acc;
-        }, {}),
-      10
-    );
+    // =======================
+    // Top Members (messages)
+    // =======================
+    const messageEvents = await Events.find({
+      guildId,
+      type: "message"
+    }).toArray();
 
-    // -------------------------
-    // Top Channels
-    // -------------------------
-    const topChannels = topN(
-      events
-        .filter(e => e.type === "message" && e.data?.channelId)
-        .reduce((acc, e) => {
-          const name = e.data.channelName || e.data.channelId;
-          acc[name] = (acc[name] || 0) + 1;
-          return acc;
-        }, {}),
-      10
-    );
+    const memberMap = {};
+    const channelMap = {};
+    const emojiMap = {};
 
-    // -------------------------
-    // Top Emojis
-    // -------------------------
-    const topEmojis = topN(
-      events
-        .filter(e => e.type === "message")
-        .reduce((acc, e) => {
-          for (const [emoji, count] of Object.entries(e.data?.emojiCount || {})) {
-            acc[emoji] = (acc[emoji] || 0) + count;
-          }
-          return acc;
-        }, {}),
-      10
-    ).map(e => ({ key: e.key, count: e.count }));
+    for (const e of messageEvents) {
+      const userKey = `${e.data.userId}:${e.data.username}`;
+      memberMap[userKey] = (memberMap[userKey] || 0) + 1;
 
-    // -------------------------
-    // Top Roles
-    // -------------------------
-    const topRoles = topN(
-      Object.values(latest.roles || {}).reduce((acc, r) => {
-        if (!r || !r.name) return acc;
-        acc[r.name] = r.count || 0;
-        return acc;
-      }, {}),
-      10
-    ).map(r => ({ key: r.key, count: r.count }));
+      const channelKey = e.data.channelName || e.data.channelId;
+      channelMap[channelKey] = (channelMap[channelKey] || 0) + 1;
 
-    // -------------------------
-    // Top Stickers
-    // -------------------------
-    const topStickers = topN(
-      Object.values(latest.stickers || {}).reduce((acc, s) => {
-        acc[s] = (acc[s] || 0) + 1;
-        return acc;
-      }, {}),
-      10
-    ).map(s => ({ key: s.key, count: s.count }));
+      for (const [emoji, count] of Object.entries(e.data.emojiCount || {})) {
+        emojiMap[emoji] = (emojiMap[emoji] || 0) + count;
+      }
+    }
 
-    // -------------------------
-    // Top Threads
-    // -------------------------
-    const topThreads = topN(
-      Object.values(latest.threads || {}).reduce((acc, t) => {
-        acc[t] = (acc[t] || 0) + 1;
-        return acc;
-      }, {}),
-      10
-    ).map(t => ({ key: t.key, count: t.count }));
+    const topMembers = topN(memberMap).map(x => {
+      const [userId, username] = x.key.split(":");
+      return { userId, username, count: x.count };
+    });
 
-    // -------------------------
-    // Top Voice
-    // -------------------------
-    const topVoice = topN(
-      Object.values(latest.voice || {}).reduce((acc, v) => {
-        if (!v?.members) return acc;
-        Object.keys(v.members).forEach(id => {
-          acc[id] = (acc[id] || 0) + 1;
-        });
-        return acc;
-      }, {}),
-      10
-    ).map(v => ({ key: v.key, count: v.count }));
+    const topChannels = topN(channelMap).map(x => ({
+      name: x.key,
+      count: x.count
+    }));
 
-    // -------------------------
-    // Recent Events (latest 10)
-    // -------------------------
-    const recentEvents = events
-      .slice(-10)
-      .reverse()
-      .map(e => ({
-        type: e.type,
-        timestamp: e.timestamp,
-        data: e.data
-      }));
+    const topEmojis = topN(emojiMap).map(x => ({
+      emoji: x.key,
+      count: x.count
+    }));
 
-    // -------------------------
-    // Return everything
-    // -------------------------
+    // =======================
+    // Voice activity (from events)
+    // =======================
+    const voiceEvents = await Events.find({
+      guildId,
+      type: "voice"
+    }).toArray();
+
+    const voiceMap = {};
+    for (const e of voiceEvents) {
+      const key = `${e.data.userId}:${e.data.username}`;
+      voiceMap[key] = (voiceMap[key] || 0) + 1;
+    }
+
+    const topVoice = topN(voiceMap).map(x => {
+      const [userId, username] = x.key.split(":");
+      return { userId, username, count: x.count };
+    });
+
+    // =======================
+    // Final response
+    // =======================
     res.status(200).json({
       overview,
       timeline,
       topMembers,
       topChannels,
       topEmojis,
-      topRoles,
-      topStickers,
-      topThreads,
-      topVoice,
-      events: recentEvents
+      topVoice
     });
+
   } catch (err) {
-    console.error("❌ Analytics API error:", err);
+    console.error("❌ analytics API error:", err);
     res.status(500).json({ error: "Server error" });
   }
 }
