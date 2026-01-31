@@ -28,7 +28,8 @@ function topN(map, n = 10) {
 const WINDOWS = {
   "24h": 24 * 60 * 60 * 1000,
   "7d": 7 * 24 * 60 * 60 * 1000,
-  "30d": 30 * 24 * 60 * 60 * 1000
+  "30d": 30 * 24 * 60 * 60 * 1000,
+  "overall": Infinity
 };
 
 // =======================
@@ -36,13 +37,10 @@ const WINDOWS = {
 // =======================
 export default async function handler(req, res) {
   const { guildId } = req.query;
-  if (!guildId) {
-    return res.status(400).json({ error: "No guildId provided" });
-  }
+  if (!guildId) return res.status(400).json({ error: "No guildId provided" });
 
   try {
     const db = await connectMongo();
-
     const Events = db.collection("events");
     const Snapshots = db.collection("snapshots");
 
@@ -54,9 +52,8 @@ export default async function handler(req, res) {
       .limit(1)
       .next();
 
-    if (!latest) {
+    if (!latest)
       return res.status(404).json({ error: "No snapshot data found" });
-    }
 
     const overview = {
       name: latest.name || "Unknown Guild",
@@ -68,17 +65,24 @@ export default async function handler(req, res) {
       online: latest.online || 0,
       idle: latest.idle || 0,
       dnd: latest.dnd || 0,
-      offline: latest.offline || 0
+      offline: latest.offline || 0,
+      channels: latest.channels || {},
+      roles: latest.roles || {},
+      threads: latest.threads || {},
+      emojis: latest.emojis || {},
+      stickers: latest.stickers || {},
+      topMessages: latest.topMessages || {},
+      topVoice: latest.topVoice || {}
     };
 
     // =======================
-    // Timeline (messages / joins / leaves / boosts)
+    // Timeline: 24h / 7d / 30d / overall
     // =======================
     const now = Date.now();
     const timeline = {};
 
     for (const [label, windowMs] of Object.entries(WINDOWS)) {
-      const cutoff = new Date(now - windowMs);
+      const cutoff = windowMs === Infinity ? 0 : new Date(now - windowMs);
 
       const windowSnapshots = await Snapshots.find({
         guildId,
@@ -94,59 +98,46 @@ export default async function handler(req, res) {
       const messages = [];
       const joins = [];
       const leaves = [];
+      const boosts = windowSnapshots.map(s => s.boosts || 0);
+
+      // Use single aggregation to reduce DB calls
+      const eventsCursor = Events.find({
+        guildId,
+        timestamp: { $gte: cutoff }
+      });
+
+      const typeMap = { message: [], join: [], leave: [] };
+      await eventsCursor.forEach(e => {
+        if (typeMap[e.type]) typeMap[e.type].push(new Date(e.timestamp));
+      });
 
       for (let i = 0; i < windowSnapshots.length; i++) {
         const start = new Date(windowSnapshots[i].timestamp);
         const end =
-          windowSnapshots[i + 1]
+          i + 1 < windowSnapshots.length
             ? new Date(windowSnapshots[i + 1].timestamp)
             : new Date();
 
-        const [msgCount, joinCount, leaveCount] = await Promise.all([
-          Events.countDocuments({
-            guildId,
-            type: "message",
-            timestamp: { $gte: start, $lt: end }
-          }),
-          Events.countDocuments({
-            guildId,
-            type: "join",
-            timestamp: { $gte: start, $lt: end }
-          }),
-          Events.countDocuments({
-            guildId,
-            type: "leave",
-            timestamp: { $gte: start, $lt: end }
-          })
-        ]);
+        const countEvents = (type) =>
+          (typeMap[type] || []).filter(ts => ts >= start && ts < end).length;
 
-        messages.push(msgCount);
-        joins.push(joinCount);
-        leaves.push(leaveCount);
+        messages.push(countEvents("message"));
+        joins.push(countEvents("join"));
+        leaves.push(countEvents("leave"));
       }
 
-      timeline[label] = {
-        labels,
-        messages,
-        joins,
-        leaves,
-        boosts: windowSnapshots.map(s => s.boosts || 0)
-      };
+      timeline[label] = { labels, messages, joins, leaves, boosts };
     }
 
     // =======================
-    // Top Members (messages)
+    // Top Members / Channels / Emojis / Roles / Threads / Stickers / Voice
     // =======================
-    const messageEvents = await Events.find({
-      guildId,
-      type: "message"
-    }).toArray();
-
+    const messageEvents = await Events.find({ guildId, type: "message" }).toArray();
     const memberMap = {};
     const channelMap = {};
     const emojiMap = {};
 
-    for (const e of messageEvents) {
+    messageEvents.forEach(e => {
       const userKey = `${e.data.userId}:${e.data.username}`;
       memberMap[userKey] = (memberMap[userKey] || 0) + 1;
 
@@ -156,44 +147,52 @@ export default async function handler(req, res) {
       for (const [emoji, count] of Object.entries(e.data.emojiCount || {})) {
         emojiMap[emoji] = (emojiMap[emoji] || 0) + count;
       }
-    }
+    });
 
     const topMembers = topN(memberMap).map(x => {
       const [userId, username] = x.key.split(":");
       return { userId, username, count: x.count };
     });
 
-    const topChannels = topN(channelMap).map(x => ({
-      name: x.key,
-      count: x.count
-    }));
+    const topChannels = topN(channelMap).map(x => ({ name: x.key, count: x.count }));
+    const topEmojis = topN(emojiMap).map(x => ({ emoji: x.key, count: x.count }));
 
-    const topEmojis = topN(emojiMap).map(x => ({
-      emoji: x.key,
-      count: x.count
-    }));
+    const topRoles = topN(
+      Object.values(latest.roles || {}).reduce((acc, role) => {
+        if (!role || !role.name) return acc;
+        acc[role.name] = role.count || 0;
+        return acc;
+      }, {})
+    ).map(x => ({ role: x.key, count: x.count }));
 
-    // =======================
-    // Voice activity (from events)
-    // =======================
-    const voiceEvents = await Events.find({
-      guildId,
-      type: "voice"
-    }).toArray();
+    const topStickers = topN(
+      Object.values(latest.stickers || {}).reduce((acc, s) => {
+        acc[s] = (acc[s] || 0) + 1;
+        return acc;
+      }, {})
+    ).map(x => ({ sticker: x.key, count: x.count }));
 
+    const topThreads = topN(
+      Object.values(latest.threads || {}).reduce((acc, tName) => {
+        acc[tName] = (acc[tName] || 0) + 1;
+        return acc;
+      }, {})
+    ).map(x => ({ thread: x.key, count: x.count }));
+
+    // Voice
+    const voiceEvents = await Events.find({ guildId, type: "voice" }).toArray();
     const voiceMap = {};
     for (const e of voiceEvents) {
       const key = `${e.data.userId}:${e.data.username}`;
       voiceMap[key] = (voiceMap[key] || 0) + 1;
     }
-
     const topVoice = topN(voiceMap).map(x => {
       const [userId, username] = x.key.split(":");
       return { userId, username, count: x.count };
     });
 
     // =======================
-    // Final response
+    // Return all data
     // =======================
     res.status(200).json({
       overview,
@@ -201,6 +200,9 @@ export default async function handler(req, res) {
       topMembers,
       topChannels,
       topEmojis,
+      topRoles,
+      topStickers,
+      topThreads,
       topVoice
     });
 
