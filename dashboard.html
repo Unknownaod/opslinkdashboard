@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Server Dashboard • Discord Analytics</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-gray-900 text-white font-sans flex flex-col min-h-screen">
+
+  <!-- Navbar -->
+  <nav class="bg-gray-800 p-4 flex justify-between items-center">
+    <span id="guild-name" class="font-bold text-xl">Server Dashboard</span>
+    <a href="/guilds.html" class="bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded">Back to Servers</a>
+  </nav>
+
+  <main class="flex-1 p-6">
+    <h2 class="text-2xl font-bold mb-4">Overview</h2>
+    <div class="grid md:grid-cols-3 gap-6 mb-8">
+      <div class="bg-gray-700 p-4 rounded text-center">
+        <h3>Members</h3>
+        <p id="members-count" class="text-2xl font-bold">-</p>
+      </div>
+      <div class="bg-gray-700 p-4 rounded text-center">
+        <h3>Bots</h3>
+        <p id="bots-count" class="text-2xl font-bold">-</p>
+      </div>
+      <div class="bg-gray-700 p-4 rounded text-center">
+        <h3>Boosts</h3>
+        <p id="boosts-count" class="text-2xl font-bold">-</p>
+      </div>
+    </div>
+
+    <h2 class="text-2xl font-bold mb-2">Messages Timeline</h2>
+    <canvas id="messagesChart" class="bg-gray-800 p-4 rounded mb-8"></canvas>
+
+    <h2 class="text-2xl font-bold mb-2">Top Members</h2>
+    <ul id="top-members" class="grid md:grid-cols-3 gap-4 mb-8"></ul>
+
+    <h2 class="text-2xl font-bold mb-2">Top Channels</h2>
+    <ul id="top-channels" class="grid md:grid-cols-3 gap-4 mb-8"></ul>
+
+    <h2 class="text-2xl font-bold mb-2">Top Emojis</h2>
+    <ul id="top-emojis" class="grid md:grid-cols-3 gap-4 mb-8"></ul>
+
+  </main>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      const params = new URLSearchParams(window.location.search);
+      const guildId = params.get('guildId');
+      if(!guildId) { alert('No guild selected'); window.location.href='/guilds.html'; return; }
+
+      // Fetch analytics from backend
+      const res = await fetch(`/api/servers/${guildId}/analytics`);
+      const data = await res.json();
+
+      // Overview
+      document.getElementById('guild-name').textContent = data.name;
+      document.getElementById('members-count').textContent = data.members;
+      document.getElementById('bots-count').textContent = data.bots;
+      document.getElementById('boosts-count').textContent = data.boosts;
+
+      // Messages Chart
+      new Chart(document.getElementById('messagesChart').getContext('2d'), {
+        type: 'bar',
+        data: { labels: data.timeline.labels, datasets: [{ label: 'Messages', data: data.timeline.messages, backgroundColor:'#3b82f6' }] },
+        options: { responsive:true, plugins:{legend:{display:false}} }
+      });
+
+      // Top Members
+      const topMembers = document.getElementById('top-members');
+      data.topMembers.forEach(m => {
+        const li = document.createElement('li');
+        li.className = 'bg-gray-700 p-3 rounded';
+        li.textContent = `${m.username}: ${m.count} msgs`;
+        topMembers.appendChild(li);
+      });
+
+      // Top Channels
+      const topChannels = document.getElementById('top-channels');
+      data.topChannels.forEach(c => {
+        const li = document.createElement('li');
+        li.className = 'bg-gray-700 p-3 rounded';
+        li.textContent = `${c.name}: ${c.count} msgs`;
+        topChannels.appendChild(li);
+      });
+
+      // Top Emojis
+      const topEmojis = document.getElementById('top-emojis');
+      data.topEmojis.forEach(e => {
+        const li = document.createElement('li');
+        li.className = 'bg-gray-700 p-3 rounded text-center';
+        li.textContent = `${e.emoji}: ${e.count}`;
+        topEmojis.appendChild(li);
+      });
+    });
+  </script>
+
+</body>
+</html>
