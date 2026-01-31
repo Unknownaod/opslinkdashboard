@@ -4,7 +4,7 @@ let client;
 let db;
 
 // =======================
-// Mongo Connection
+// Mongo Connection (serverless-safe)
 // =======================
 async function connectMongo() {
   if (!client) {
@@ -76,36 +76,43 @@ export default async function handler(req, res) {
     };
 
     const now = Date.now();
+    const timeline = {};
 
     // =======================
-    // Timeline
+    // Timeline optimization
     // =======================
-    const timeline = {};
+    const allSnapshots = await Snapshots.find({ guildId }).sort({ timestamp: 1 }).toArray();
+
     for (const [label, windowMs] of Object.entries(WINDOWS)) {
       const cutoff = windowMs === Infinity ? 0 : new Date(now - windowMs);
-
-      // Load snapshots in cursor mode to avoid huge memory usage
-      const windowSnapshots = [];
-      await Snapshots.find({ guildId, timestamp: { $gte: cutoff } })
-        .sort({ timestamp: 1 })
-        .forEach(s => windowSnapshots.push(s));
+      const windowSnapshots = allSnapshots.filter(s => s.timestamp >= cutoff);
 
       const labels = windowSnapshots.map(s => new Date(s.timestamp).toISOString().slice(0, 10));
+      const boosts = windowSnapshots.map(s => s.boosts || 0);
+
+      // Pre-count events in a single pass using aggregation
+      const countsCursor = await Events.aggregate([
+        { $match: { guildId, timestamp: { $gte: cutoff } } },
+        {
+          $group: {
+            _id: "$type",
+            timestamps: { $push: "$timestamp" }
+          }
+        }
+      ]).toArray();
+
+      const typeMap = {};
+      for (const c of countsCursor) typeMap[c._id] = c.timestamps.map(ts => new Date(ts));
+
       const messages = Array(windowSnapshots.length).fill(0);
       const joins = Array(windowSnapshots.length).fill(0);
       const leaves = Array(windowSnapshots.length).fill(0);
-      const boosts = windowSnapshots.map(s => s.boosts || 0);
-
-      // Aggregate events in single pass using cursor
-      const typeMap = { message: [], join: [], leave: [] };
-      await Events.find({ guildId, timestamp: { $gte: cutoff } })
-        .forEach(e => { if (typeMap[e.type]) typeMap[e.type].push(new Date(e.timestamp)); });
 
       for (let i = 0; i < windowSnapshots.length; i++) {
         const start = new Date(windowSnapshots[i].timestamp);
         const end = i + 1 < windowSnapshots.length ? new Date(windowSnapshots[i + 1].timestamp) : new Date();
+        const countEvents = (type) => (typeMap[type] || []).reduce((acc, ts) => acc + (ts >= start && ts < end ? 1 : 0), 0);
 
-        const countEvents = (type) => typeMap[type].filter(ts => ts >= start && ts < end).length;
         messages[i] = countEvents("message");
         joins[i] = countEvents("join");
         leaves[i] = countEvents("leave");
@@ -115,39 +122,38 @@ export default async function handler(req, res) {
     }
 
     // =======================
-    // Top members / channels / emojis / roles / threads / stickers / voice
+    // Aggregate top lists
     // =======================
     const memberMap = {};
     const channelMap = {};
     const emojiMap = {};
     const voiceMap = {};
 
-    // Messages
-    await Events.find({ guildId, type: "message" }).forEach(e => {
-      const userKey = `${e.data.userId}:${e.data.username}`;
-      memberMap[userKey] = (memberMap[userKey] || 0) + 1;
+    const cursor = Events.find({ guildId });
+    await cursor.forEach(e => {
+      if (e.type === "message") {
+        const userKey = `${e.data.userId}:${e.data.username}`;
+        memberMap[userKey] = (memberMap[userKey] || 0) + 1;
 
-      const channelKey = e.data.channelName || e.data.channelId;
-      channelMap[channelKey] = (channelMap[channelKey] || 0) + 1;
+        const channelKey = e.data.channelName || e.data.channelId;
+        channelMap[channelKey] = (channelMap[channelKey] || 0) + 1;
 
-      for (const [emoji, count] of Object.entries(e.data.emojiCount || {})) {
-        emojiMap[emoji] = (emojiMap[emoji] || 0) + count;
+        for (const [emoji, count] of Object.entries(e.data.emojiCount || {})) {
+          emojiMap[emoji] = (emojiMap[emoji] || 0) + count;
+        }
+      } else if (e.type === "voice") {
+        const key = `${e.data.userId}:${e.data.username}`;
+        voiceMap[key] = (voiceMap[key] || 0) + 1;
       }
-    });
-
-    // Voice
-    await Events.find({ guildId, type: "voice" }).forEach(e => {
-      const key = `${e.data.userId}:${e.data.username}`;
-      voiceMap[key] = (voiceMap[key] || 0) + 1;
     });
 
     const topMembers = topN(memberMap).map(x => {
       const [userId, username] = x.key.split(":");
       return { userId, username, count: x.count };
     });
+
     const topChannels = topN(channelMap).map(x => ({ name: x.key, count: x.count }));
     const topEmojis = topN(emojiMap).map(x => ({ emoji: x.key, count: x.count }));
-
     const topRoles = topN(
       Object.values(latest.roles || {}).reduce((acc, role) => {
         if (!role || !role.name) return acc;
@@ -155,28 +161,25 @@ export default async function handler(req, res) {
         return acc;
       }, {})
     ).map(x => ({ role: x.key, count: x.count }));
-
     const topStickers = topN(
       Object.values(latest.stickers || {}).reduce((acc, s) => {
         acc[s] = (acc[s] || 0) + 1;
         return acc;
       }, {})
     ).map(x => ({ sticker: x.key, count: x.count }));
-
     const topThreads = topN(
       Object.values(latest.threads || {}).reduce((acc, tName) => {
         acc[tName] = (acc[tName] || 0) + 1;
         return acc;
       }, {})
     ).map(x => ({ thread: x.key, count: x.count }));
-
     const topVoice = topN(voiceMap).map(x => {
       const [userId, username] = x.key.split(":");
       return { userId, username, count: x.count };
     });
 
     // =======================
-    // Return all data
+    // Send response
     // =======================
     res.status(200).json({
       overview,
@@ -189,7 +192,6 @@ export default async function handler(req, res) {
       topThreads,
       topVoice
     });
-
   } catch (err) {
     console.error("❌ analytics API error:", err);
     res.status(500).json({ error: "Server error" });
