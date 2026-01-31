@@ -5,38 +5,79 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Your Servers • Discord Analytics</title>
 <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-gradient-to-br from-black via-zinc-900 to-black text-white font-sans min-h-screen flex flex-col">
 
-<!-- Navbar -->
-<nav class="flex items-center justify-between px-10 py-6 border-b border-zinc-800 shadow-md">
-  <span class="text-2xl font-bold text-emerald-400">Discord Analytics</span>
-  <a href="/api/logout" class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded transition">Logout</a>
+<style>
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background-image: radial-gradient(rgba(255,255,255,0.03) 1px, transparent 1px);
+    background-size: 3px 3px;
+    pointer-events: none;
+    z-index: 0;
+  }
+</style>
+</head>
+
+<body class="relative bg-black text-white font-sans min-h-screen flex flex-col overflow-x-hidden">
+
+<!-- NAVBAR -->
+<nav class="relative z-10 flex items-center justify-between px-10 py-6 border-b border-white/10 backdrop-blur-xl bg-black/60">
+  <span class="text-2xl font-bold tracking-tight">
+    Discord Analytics
+  </span>
+  <a
+    href="/api/logout"
+    class="px-5 py-2 rounded-xl bg-white/10 border border-white/20 hover:bg-white/20 transition text-sm font-medium"
+  >
+    Logout
+  </a>
 </nav>
 
-<!-- Main -->
-<main class="flex-1 px-10 py-10 max-w-7xl mx-auto">
-  <h1 class="text-3xl font-bold text-center mb-8">Servers Overview</h1>
-  <p id="status" class="text-center text-zinc-400 mb-6">Loading your servers…</p>
+<!-- MAIN -->
+<main class="relative z-10 flex-1 px-10 py-14 max-w-7xl mx-auto w-full">
 
-  <!-- Tabs -->
-  <div class="flex justify-center gap-4 mb-10">
-    <button class="tab-btn px-5 py-2 rounded bg-emerald-500 hover:bg-emerald-600 ring-2 ring-emerald-400" data-tab="installed">Bot Installed</button>
-    <button class="tab-btn px-5 py-2 rounded bg-yellow-500 hover:bg-yellow-600" data-tab="not-installed">Bot Not Installed</button>
-    <button class="tab-btn px-5 py-2 rounded bg-gray-700 hover:bg-gray-600" data-tab="all">All Servers</button>
+  <h1 class="text-4xl font-bold text-center mb-4">
+    Your Servers
+  </h1>
+  <p id="status" class="text-center text-gray-400 mb-10">
+    Loading your servers…
+  </p>
+
+  <!-- TABS -->
+  <div class="flex justify-center gap-4 mb-12 flex-wrap">
+    <button
+      class="tab-btn px-6 py-2.5 rounded-xl bg-white text-black font-medium shadow-lg"
+      data-tab="installed"
+    >
+      Bot Installed
+    </button>
+    <button
+      class="tab-btn px-6 py-2.5 rounded-xl bg-white/10 border border-white/20 hover:bg-white/20 transition font-medium"
+      data-tab="not-installed"
+    >
+      Bot Not Installed
+    </button>
+    <button
+      class="tab-btn px-6 py-2.5 rounded-xl bg-white/10 border border-white/20 hover:bg-white/20 transition font-medium"
+      data-tab="all"
+    >
+      All Servers
+    </button>
   </div>
 
-  <!-- Server lists -->
-  <div id="installed" class="server-tab grid gap-6 sm:grid-cols-2 md:grid-cols-3 mb-10"></div>
-  <div id="not-installed" class="server-tab grid gap-6 sm:grid-cols-2 md:grid-cols-3 mb-10 hidden"></div>
-  <div id="all" class="server-tab grid gap-6 sm:grid-cols-2 md:grid-cols-3 mb-10 hidden"></div>
+  <!-- SERVER LISTS -->
+  <div id="installed" class="server-tab grid gap-8 sm:grid-cols-2 md:grid-cols-3 mb-12"></div>
+  <div id="not-installed" class="server-tab grid gap-8 sm:grid-cols-2 md:grid-cols-3 mb-12 hidden"></div>
+  <div id="all" class="server-tab grid gap-8 sm:grid-cols-2 md:grid-cols-3 mb-12 hidden"></div>
 </main>
 
-<!-- Footer -->
-<footer class="bg-zinc-800 text-zinc-400 text-center p-4">
-  &copy; 2026 Discord Analytics
+<!-- FOOTER -->
+<footer class="relative z-10 border-t border-white/10 text-gray-400 text-center py-6 text-sm">
+  © 2026 Discord Analytics
 </footer>
 
+<!-- SCRIPT -->
 <script>
 async function loadServers() {
   const status = document.getElementById("status");
@@ -45,61 +86,100 @@ async function loadServers() {
   const allList = document.getElementById("all");
 
   try {
-    const res = await fetch("/api/guilds"); // returns { inBotAndUser, userNotInBot }
+    const res = await fetch("/api/guilds");
     if (res.status === 401) return window.location.href = "/";
-    const { inBotAndUser, userNotInBot } = await res.json();
 
+    const { inBotAndUser, userNotInBot } = await res.json();
     status.remove();
 
     function createCard(guild, installed) {
       const card = document.createElement("div");
-      card.className = "bg-zinc-900 rounded-2xl p-6 flex flex-col items-center text-center shadow-lg hover:shadow-xl hover:bg-zinc-800 transition duration-300";
+      card.className =
+        "bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 flex flex-col items-center text-center shadow-xl hover:shadow-2xl hover:bg-white/10 transition-all";
 
       const icon = document.createElement("img");
-      icon.src = guild.icon ? `https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.png?size=128` : "https://cdn.discordapp.com/embed/avatars/0.png";
+      icon.src = guild.icon
+        ? `https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.png?size=128`
+        : "https://cdn.discordapp.com/embed/avatars/0.png";
       icon.alt = guild.name;
-      icon.className = "h-24 w-24 rounded-full mb-4 border-2 border-zinc-700";
+      icon.className =
+        "h-24 w-24 rounded-full mb-5 border border-white/20";
 
       const name = document.createElement("h3");
       name.textContent = guild.name;
-      name.className = "font-semibold text-lg mb-4 truncate max-w-xs";
+      name.className =
+        "font-semibold text-lg mb-6 truncate max-w-xs";
 
       const button = document.createElement("a");
+      button.className =
+        "mt-auto w-full px-5 py-2.5 rounded-xl font-medium transition text-center";
+
       if (installed) {
         button.href = `/dashboard.html?guildId=${guild.id}`;
-        button.textContent = "View Dashboard";
-        button.className = "mt-auto bg-emerald-500 hover:bg-emerald-600 px-5 py-2 rounded-full transition w-full text-center font-medium";
+        button.textContent = "Open Dashboard";
+        button.classList.add(
+          "bg-white",
+          "text-black",
+          "hover:bg-gray-200",
+          "shadow-lg"
+        );
       } else {
-        button.href = guild.addBotLink || `https://discord.com/oauth2/authorize?client_id=1466430352238055587&scope=bot&permissions=8&guild_id=${guild.id}`;
+        button.href =
+          guild.addBotLink ||
+          `https://discord.com/oauth2/authorize?client_id=1466430352238055587&scope=bot&permissions=8&guild_id=${guild.id}`;
         button.textContent = "Add Bot";
-        button.className = "mt-auto bg-yellow-500 hover:bg-yellow-600 px-5 py-2 rounded-full transition w-full text-center font-medium";
+        button.classList.add(
+          "bg-white/10",
+          "border",
+          "border-white/20",
+          "hover:bg-white/20"
+        );
       }
 
       card.append(icon, name, button);
       return card;
     }
 
-    inBotAndUser.forEach(g => installedList.appendChild(createCard(g, true)));
-    userNotInBot.forEach(g => notInstalledList.appendChild(createCard(g, false)));
-    [...inBotAndUser, ...userNotInBot].forEach(g => allList.appendChild(createCard(g, inBotAndUser.some(ig => ig.id === g.id))));
+    inBotAndUser.forEach(g =>
+      installedList.appendChild(createCard(g, true))
+    );
 
+    userNotInBot.forEach(g =>
+      notInstalledList.appendChild(createCard(g, false))
+    );
+
+    [...inBotAndUser, ...userNotInBot].forEach(g =>
+      allList.appendChild(
+        createCard(
+          g,
+          inBotAndUser.some(ig => ig.id === g.id)
+        )
+      )
+    );
   } catch (err) {
     console.error(err);
     status.textContent = "Failed to load servers.";
   }
 }
 
-// Tab switching
+// Tabs
 document.addEventListener("click", e => {
   if (!e.target.classList.contains("tab-btn")) return;
+
   const tab = e.target.dataset.tab;
-  document.querySelectorAll(".server-tab").forEach(t => t.classList.add("hidden"));
+
+  document.querySelectorAll(".server-tab").forEach(t =>
+    t.classList.add("hidden")
+  );
   document.getElementById(tab).classList.remove("hidden");
 
-  document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("ring-2", "ring-emerald-400", "ring-yellow-400", "ring-gray-400"));
-  if(tab === "installed") e.target.classList.add("ring-2", "ring-emerald-400");
-  if(tab === "not-installed") e.target.classList.add("ring-2", "ring-yellow-400");
-  if(tab === "all") e.target.classList.add("ring-2", "ring-gray-400");
+  document.querySelectorAll(".tab-btn").forEach(b => {
+    b.className =
+      "tab-btn px-6 py-2.5 rounded-xl bg-white/10 border border-white/20 hover:bg-white/20 transition font-medium";
+  });
+
+  e.target.className =
+    "tab-btn px-6 py-2.5 rounded-xl bg-white text-black font-medium shadow-lg";
 });
 
 loadServers();
