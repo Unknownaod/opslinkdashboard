@@ -164,6 +164,7 @@ const guildId = params.get("guildId");
 let currentWindow = "24h";
 
 let msgChart, presenceChart, joinLeaveChart, boostChart;
+let previousData = null;
 
 async function fetchData() {
   if (!guildId) return location.href = "/guilds.html";
@@ -179,91 +180,115 @@ function fillList(id, items, format) {
     el.innerHTML = "<li class='text-zinc-500'>No data</li>";
     return;
   }
+  const fragment = document.createDocumentFragment();
   items.forEach(i => {
     const li = document.createElement("li");
     li.textContent = format(i);
-    el.appendChild(li);
+    fragment.appendChild(li);
   });
+  el.appendChild(fragment);
+}
+
+function updateChart(chart, labels, datasets) {
+  if (!chart) return null;
+  chart.data.labels = labels;
+  datasets.forEach((ds, i) => {
+    chart.data.datasets[i].data = ds.data;
+  });
+  chart.update();
+  return chart;
 }
 
 function renderCharts(data) {
-  // Messages
-  if(msgChart) msgChart.destroy();
-  msgChart = new Chart(document.getElementById("msgChart"), {
-    type: "bar",
-    data: {
-      labels: data.topMembers.map(m => m.username),
-      datasets: [{ data: data.topMembers.map(m => m.count), backgroundColor:'rgba(59,130,246,0.7)' }]
-    },
-    options: { plugins: { legend: { display: false } }, responsive:true, maintainAspectRatio:false }
-  });
+  // Messages chart
+  if (!msgChart) {
+    msgChart = new Chart(document.getElementById("msgChart"), {
+      type: "bar",
+      data: { labels: data.topMembers.map(m => m.username), datasets: [{ data: data.topMembers.map(m => m.count), backgroundColor:'rgba(59,130,246,0.7)' }] },
+      options: { plugins:{ legend:{ display:false } }, responsive:true, maintainAspectRatio:false }
+    });
+  } else {
+    updateChart(msgChart, data.topMembers.map(m => m.username), [{ data: data.topMembers.map(m => m.count) }]);
+  }
 
-  // Presence
-  if(presenceChart) presenceChart.destroy();
-  presenceChart = new Chart(document.getElementById("presenceChart"), {
-    type: "doughnut",
-    data: {
-      labels: ["Online", "Idle", "DND", "Offline"],
-      datasets: [{
-        data: [data.overview.online, data.overview.idle, data.overview.dnd, data.overview.offline],
-        backgroundColor:['#10B981','#FACC15','#F87171','#6B7280']
-      }]
-    },
-    options: { plugins: { legend: { labels: { color:'#fff' } } }, responsive:true, maintainAspectRatio:false }
-  });
+  // Presence chart
+  const presenceData = [data.overview.online, data.overview.idle, data.overview.dnd, data.overview.offline];
+  if (!presenceChart) {
+    presenceChart = new Chart(document.getElementById("presenceChart"), {
+      type: "doughnut",
+      data: { labels: ["Online","Idle","DND","Offline"], datasets:[{ data: presenceData, backgroundColor:['#10B981','#FACC15','#F87171','#6B7280'] }] },
+      options: { plugins:{ legend:{ labels:{ color:'#fff' } } }, responsive:true, maintainAspectRatio:false }
+    });
+  } else {
+    updateChart(presenceChart, ["Online","Idle","DND","Offline"], [{ data: presenceData }]);
+  }
 
-  // Joins / Leaves
+  // Timeline charts
   const timeline = data.timeline[currentWindow];
-  if(joinLeaveChart) joinLeaveChart.destroy();
-  joinLeaveChart = new Chart(document.getElementById("joinLeaveChart"), {
-    type:'line',
-    data: {
-      labels: timeline.labels,
-      datasets: [
+
+  if (!joinLeaveChart) {
+    joinLeaveChart = new Chart(document.getElementById("joinLeaveChart"), {
+      type:'line',
+      data: { labels: timeline.labels, datasets:[
         { label:'Joins', data: timeline.joins, borderColor:'#10B981', backgroundColor:'rgba(16,185,129,0.3)' },
         { label:'Leaves', data: timeline.leaves, borderColor:'#F87171', backgroundColor:'rgba(248,113,113,0.3)' }
-      ]
-    },
-    options: { responsive:true, maintainAspectRatio:false }
-  });
+      ] },
+      options:{ responsive:true, maintainAspectRatio:false }
+    });
+  } else {
+    updateChart(joinLeaveChart, timeline.labels, [
+      { data: timeline.joins },
+      { data: timeline.leaves }
+    ]);
+  }
 
-  // Boosts
-  if(boostChart) boostChart.destroy();
-  boostChart = new Chart(document.getElementById("boostChart"), {
-    type:'line',
-    data: {
-      labels: timeline.labels,
-      datasets:[{ label:'Boosts', data: timeline.boosts, borderColor:'#3B82F6', backgroundColor:'rgba(59,130,246,0.3)' }]
-    },
-    options:{ responsive:true, maintainAspectRatio:false }
-  });
+  if (!boostChart) {
+    boostChart = new Chart(document.getElementById("boostChart"), {
+      type:'line',
+      data: { labels: timeline.labels, datasets:[{ label:'Boosts', data: timeline.boosts, borderColor:'#3B82F6', backgroundColor:'rgba(59,130,246,0.3)' }] },
+      options:{ responsive:true, maintainAspectRatio:false }
+    });
+  } else {
+    updateChart(boostChart, timeline.labels, [{ data: timeline.boosts }]);
+  }
 }
 
 async function render() {
-  const data = await fetchData();
+  try {
+    const data = await fetchData();
 
-  const o = data.overview;
-  document.getElementById("serverName").textContent = o.name;
-  document.getElementById("serverIcon").src = o.iconURL || "https://cdn.discordapp.com/embed/avatars/0.png";
+    // Only update overview if changed
+    if (!previousData || JSON.stringify(previousData.overview) !== JSON.stringify(data.overview)) {
+      const o = data.overview;
+      document.getElementById("serverName").textContent = o.name;
+      document.getElementById("serverIcon").src = o.iconURL || "https://cdn.discordapp.com/embed/avatars/0.png";
 
-  membersTotal.textContent = o.members;
-  membersHumans.textContent = o.humans;
-  membersBots.textContent = o.bots;
-  membersOnline.textContent = o.online;
-  membersIdle.textContent = o.idle;
-  membersDND.textContent = o.dnd;
-  membersOffline.textContent = o.offline;
-  serverBoosts.textContent = o.boosts;
+      membersTotal.textContent = o.members;
+      membersHumans.textContent = o.humans;
+      membersBots.textContent = o.bots;
+      membersOnline.textContent = o.online;
+      membersIdle.textContent = o.idle;
+      membersDND.textContent = o.dnd;
+      membersOffline.textContent = o.offline;
+      serverBoosts.textContent = o.boosts;
+    }
 
-  fillList("topMembers", data.topMembers, m => `${m.username} (${m.count})`);
-  fillList("topChannels", data.topChannels, c => `${c.name} (${c.count})`);
-  fillList("topEmojis", data.topEmojis, e => `${e.emoji} (${e.count})`);
-  fillList("topVoice", data.topVoice, v => `${v.username} (${v.count})`);
+    // Update lists if changed
+    fillList("topMembers", data.topMembers, m => `${m.username} (${m.count})`);
+    fillList("topChannels", data.topChannels, c => `${c.name} (${c.count})`);
+    fillList("topEmojis", data.topEmojis, e => `${e.emoji} (${e.count})`);
+    fillList("topVoice", data.topVoice, v => `${v.username} (${v.count})`);
 
-  renderCharts(data);
+    // Update charts
+    renderCharts(data);
+
+    previousData = data;
+  } catch(err) {
+    console.error("Render error:", err);
+  }
 }
 
-// Time switch buttons
+// Time window buttons
 document.querySelectorAll(".time-btn").forEach(btn => {
   btn.addEventListener("click", e => {
     currentWindow = e.target.dataset.window;
@@ -274,8 +299,8 @@ document.querySelectorAll(".time-btn").forEach(btn => {
 // Initial render + live updates
 render();
 setInterval(render, 20000);
-
 </script>
+
 
 </body>
 </html>
