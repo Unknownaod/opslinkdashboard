@@ -1,4 +1,4 @@
-import { MongoClient, ObjectId } from "mongodb";
+import { MongoClient } from "mongodb";
 
 let client;
 let db;
@@ -21,14 +21,9 @@ function topN(map, n = 5) {
     .map(([key, count]) => ({ key, count }));
 }
 
-// Helper: Aggregate events by type
+// Aggregate events by type
 function aggregateEvents(events, type) {
   return events.filter(e => e.type === type);
-}
-
-// Helper: Summarize counts from snapshots
-function aggregateSnapshots(snapshots, key) {
-  return snapshots.map(s => s[key] || 0).reduce((a, b) => a + b, 0);
 }
 
 export default async function handler(req, res) {
@@ -46,7 +41,8 @@ export default async function handler(req, res) {
     // --- Latest snapshot overview ---
     const latest = snapshots[snapshots.length - 1] || {};
     const overview = {
-      name: guildData.name || "Unknown Guild",
+      name: latest.name || guildData.name || "Unknown Guild",
+      iconURL: latest.iconURL || null,
       members: latest.members || 0,
       humans: latest.humans || 0,
       bots: latest.bots || 0,
@@ -75,7 +71,7 @@ export default async function handler(req, res) {
         messages: windowSnapshots.map((s,i) => {
           const start = new Date(s.timestamp);
           const end = windowSnapshots[i+1] ? new Date(windowSnapshots[i+1].timestamp) : new Date();
-          return aggregateEvents(events.filter(e => e.type === "message"), "message")
+          return aggregateEvents(events, "message")
             .filter(e => new Date(e.timestamp) >= start && new Date(e.timestamp) < end).length;
         }),
         joins: windowSnapshots.map((s,i) => {
@@ -96,39 +92,62 @@ export default async function handler(req, res) {
 
     // --- Top Members, Channels, Emojis, Roles, Stickers ---
     const messageEvents = aggregateEvents(events, "message");
-    const topMembers = topN(messageEvents.reduce((acc,e)=>{
-      acc[e.data.userId] = (acc[e.data.userId]||0)+1;
-      return acc;
-    }, {}), 10).map(x => ({ username: x.key, count: x.count }));
 
-    const topChannels = topN(messageEvents.reduce((acc,e)=>{
-      acc[e.data.channelId] = (acc[e.data.channelId]||0)+1;
-      return acc;
-    }, {}), 10).map(x => ({ name: x.key, count: x.count }));
+    const topMembers = Object.values(
+      messageEvents.reduce((acc,e) => {
+        const username = e.data.username || e.data.userId;
+        acc[username] = (acc[username] || 0) + 1;
+        return acc;
+      }, {})
+    );
+    const topMembersList = topN(
+      messageEvents.reduce((acc, e) => {
+        const username = e.data.username || e.data.userId;
+        acc[username] = (acc[username] || 0) + 1;
+        return acc;
+      }, {}), 10
+    ).map(x => ({ username: x.key, count: x.count }));
 
-    const topEmojis = topN(messageEvents.reduce((acc,e)=>{
-      for(const [emoji,count] of Object.entries(e.data.emojiCount||{})){
-        acc[emoji]=(acc[emoji]||0)+count;
-      }
-      return acc;
-    }, {}), 10).map(x => ({ emoji: x.key, count: x.count }));
+    const topChannelsList = topN(
+      messageEvents.reduce((acc, e) => {
+        const name = e.data.channelName || e.data.channelId;
+        acc[name] = (acc[name] || 0) + 1;
+        return acc;
+      }, {}), 10
+    ).map(x => ({ name: x.key, count: x.count }));
 
-    const topRoles = topN(Object.entries(latest.roles||{}).reduce((acc,[id,val])=>{
-      acc[val.name] = val.count; return acc;
-    }, {}), 10).map(x => ({ role: x.key, count: x.count }));
+    const topEmojisList = topN(
+      messageEvents.reduce((acc, e) => {
+        for (const [emoji, count] of Object.entries(e.data.emojiCount || {})) {
+          acc[emoji] = (acc[emoji] || 0) + count;
+        }
+        return acc;
+      }, {}), 10
+    ).map(x => ({ emoji: x.key, count: x.count }));
 
-    const topStickers = topN(Object.entries(latest.stickers||{}).reduce((acc,[id,val])=>{
-      acc[val] = (acc[val]||0)+1; return acc;
-    }, {}), 10).map(x => ({ sticker: x.key, count: x.count }));
+    const topRolesList = topN(
+      Object.values(latest.roles || {}).reduce((acc, role) => {
+        if (!role || !role.name) return acc;
+        acc[role.name] = role.count || 0;
+        return acc;
+      }, {}), 10
+    ).map(x => ({ role: x.key, count: x.count }));
+
+    const topStickersList = topN(
+      Object.values(latest.stickers || {}).reduce((acc, sticker) => {
+        acc[sticker] = (acc[sticker] || 0) + 1;
+        return acc;
+      }, {}), 10
+    ).map(x => ({ sticker: x.key, count: x.count }));
 
     res.status(200).json({
       overview,
       timeline,
-      topMembers,
-      topChannels,
-      topEmojis,
-      topRoles,
-      topStickers
+      topMembers: topMembersList,
+      topChannels: topChannelsList,
+      topEmojis: topEmojisList,
+      topRoles: topRolesList,
+      topStickers: topStickersList
     });
 
   } catch (err) {
