@@ -10,7 +10,7 @@
 
 <!-- Navbar -->
 <nav class="bg-gray-800 px-6 py-4 flex justify-between items-center shadow-md">
-  <span class="font-bold text-xl text-emerald-400">Discord Analytics</span>
+  <span class="font-bold text-2xl text-emerald-400">Discord Analytics</span>
   <a href="/api/logout" class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded transition">Logout</a>
 </nav>
 
@@ -20,10 +20,10 @@
   <p id="status" class="text-center text-gray-400 mb-6">Loading your servers…</p>
 
   <!-- Tabs -->
-  <div class="flex justify-center gap-4 mb-6">
-    <button class="tab-btn px-4 py-2 rounded bg-emerald-500 hover:bg-emerald-600" data-tab="installed">Bot Installed</button>
-    <button class="tab-btn px-4 py-2 rounded bg-yellow-500 hover:bg-yellow-600" data-tab="not-installed">Bot Not Installed</button>
-    <button class="tab-btn px-4 py-2 rounded bg-gray-600 hover:bg-gray-500" data-tab="all">All Servers</button>
+  <div class="flex justify-center gap-4 mb-8">
+    <button class="tab-btn px-5 py-2 rounded bg-emerald-500 hover:bg-emerald-600 ring-2 ring-emerald-400" data-tab="installed">Bot Installed</button>
+    <button class="tab-btn px-5 py-2 rounded bg-yellow-500 hover:bg-yellow-600" data-tab="not-installed">Bot Not Installed</button>
+    <button class="tab-btn px-5 py-2 rounded bg-gray-600 hover:bg-gray-500" data-tab="all">All Servers</button>
   </div>
 
   <!-- Server lists -->
@@ -45,22 +45,9 @@ async function loadServers() {
   const allList = document.getElementById("all");
 
   try {
-    const userRes = await fetch("/api/user-guilds");
-    if (userRes.status === 401) return window.location.href = "/";
-    const userGuilds = await userRes.json();
-
-    const botRes = await fetch("/api/bot-guilds");
-    const botGuilds = await botRes.json();
-
-    const botGuildIds = new Set(botGuilds.map(g => g.id));
-
-    const installed = [];
-    const notInstalled = [];
-
-    userGuilds.forEach(g => {
-      if (botGuildIds.has(g.id)) installed.push(g);
-      else notInstalled.push(g);
-    });
+    const res = await fetch("/api/guilds"); // returns { inBotAndUser, userNotInBot }
+    if (res.status === 401) return window.location.href = "/";
+    const { inBotAndUser, userNotInBot } = await res.json();
 
     status.remove();
 
@@ -75,26 +62,27 @@ async function loadServers() {
 
       const name = document.createElement("h3");
       name.textContent = guild.name;
-      name.className = "font-semibold text-lg mb-4";
+      name.className = "font-semibold text-lg mb-4 truncate max-w-xs";
 
       const button = document.createElement("a");
       if (installed) {
         button.href = `/dashboard.html?guildId=${guild.id}`;
         button.textContent = "View Dashboard";
-        button.className = "mt-auto bg-emerald-500 hover:bg-emerald-600 px-4 py-2 rounded transition";
+        button.className = "mt-auto bg-emerald-500 hover:bg-emerald-600 px-4 py-2 rounded transition w-full text-center";
       } else {
-        button.href = `https://discord.com/oauth2/authorize?client_id=1466430352238055587&scope=bot&guild_id=${guild.id}`;
+        button.href = guild.addBotLink || `https://discord.com/oauth2/authorize?client_id=1466430352238055587&scope=bot&permissions=8&guild_id=${guild.id}`;
         button.textContent = "Add Bot";
-        button.className = "mt-auto bg-yellow-500 hover:bg-yellow-600 px-4 py-2 rounded transition";
+        button.className = "mt-auto bg-yellow-500 hover:bg-yellow-600 px-4 py-2 rounded transition w-full text-center";
       }
 
       card.append(icon, name, button);
       return card;
     }
 
-    installed.forEach(g => installedList.appendChild(createCard(g, true)));
-    notInstalled.forEach(g => notInstalledList.appendChild(createCard(g, false)));
-    userGuilds.forEach(g => allList.appendChild(createCard(g, botGuildIds.has(g.id))));
+    // Populate tabs
+    inBotAndUser.forEach(g => installedList.appendChild(createCard(g, true)));
+    userNotInBot.forEach(g => notInstalledList.appendChild(createCard(g, false)));
+    [...inBotAndUser, ...userNotInBot].forEach(g => allList.appendChild(createCard(g, inBotAndUser.some(ig => ig.id === g.id))));
 
   } catch (err) {
     console.error(err);
@@ -109,7 +97,7 @@ document.addEventListener("click", e => {
   document.querySelectorAll(".server-tab").forEach(t => t.classList.add("hidden"));
   document.getElementById(tab).classList.remove("hidden");
 
-  document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("ring-2", "ring-emerald-400", "ring-yellow-400"));
+  document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("ring-2", "ring-emerald-400", "ring-yellow-400", "ring-gray-400"));
   if(tab === "installed") e.target.classList.add("ring-2", "ring-emerald-400");
   if(tab === "not-installed") e.target.classList.add("ring-2", "ring-yellow-400");
   if(tab === "all") e.target.classList.add("ring-2", "ring-gray-400");
