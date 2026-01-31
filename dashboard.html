@@ -1,101 +1,189 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Server Dashboard • Discord Analytics</title>
+
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
-<body class="bg-gray-900 text-white font-sans flex flex-col min-h-screen">
+
+<body class="bg-gray-900 text-white font-sans min-h-screen flex flex-col">
 
   <!-- Navbar -->
-  <nav class="bg-gray-800 p-4 flex justify-between items-center">
-    <span id="guild-name" class="font-bold text-xl">Server Dashboard</span>
-    <a href="/guilds.html" class="bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded">Back to Servers</a>
+  <nav class="bg-gray-800 px-6 py-4 flex justify-between items-center">
+    <span id="guild-name" class="font-bold text-xl">
+      Loading…
+    </span>
+
+    <a
+      href="/guilds.html"
+      class="bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded transition"
+    >
+      Back to Servers
+    </a>
   </nav>
 
-  <main class="flex-1 p-6">
-    <h2 class="text-2xl font-bold mb-4">Overview</h2>
-    <div class="grid md:grid-cols-3 gap-6 mb-8">
-      <div class="bg-gray-700 p-4 rounded text-center">
-        <h3>Members</h3>
-        <p id="members-count" class="text-2xl font-bold">-</p>
+  <!-- Main -->
+  <main class="flex-1 px-6 py-8 max-w-7xl mx-auto w-full">
+
+    <p id="status" class="text-gray-400 text-center mb-6">
+      Loading server analytics…
+    </p>
+
+    <!-- Overview -->
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-4">Overview</h2>
+
+      <div class="grid gap-6 sm:grid-cols-2 md:grid-cols-3">
+        <div class="bg-gray-800 p-6 rounded text-center">
+          <h3 class="text-gray-400">Members</h3>
+          <p id="members-count" class="text-3xl font-bold">—</p>
+        </div>
+
+        <div class="bg-gray-800 p-6 rounded text-center">
+          <h3 class="text-gray-400">Bots</h3>
+          <p id="bots-count" class="text-3xl font-bold">—</p>
+        </div>
+
+        <div class="bg-gray-800 p-6 rounded text-center">
+          <h3 class="text-gray-400">Boosts</h3>
+          <p id="boosts-count" class="text-3xl font-bold">—</p>
+        </div>
       </div>
-      <div class="bg-gray-700 p-4 rounded text-center">
-        <h3>Bots</h3>
-        <p id="bots-count" class="text-2xl font-bold">-</p>
+    </section>
+
+    <!-- Timeline -->
+    <section class="mb-10">
+      <h2 class="text-2xl font-bold mb-4">Messages Timeline</h2>
+      <div class="bg-gray-800 p-4 rounded">
+        <canvas id="messagesChart"></canvas>
       </div>
-      <div class="bg-gray-700 p-4 rounded text-center">
-        <h3>Boosts</h3>
-        <p id="boosts-count" class="text-2xl font-bold">-</p>
+    </section>
+
+    <!-- Lists -->
+    <section class="grid gap-8 md:grid-cols-3">
+      <div>
+        <h2 class="text-xl font-bold mb-3">Top Members</h2>
+        <ul id="top-members" class="space-y-3"></ul>
       </div>
-    </div>
 
-    <h2 class="text-2xl font-bold mb-2">Messages Timeline</h2>
-    <canvas id="messagesChart" class="bg-gray-800 p-4 rounded mb-8"></canvas>
+      <div>
+        <h2 class="text-xl font-bold mb-3">Top Channels</h2>
+        <ul id="top-channels" class="space-y-3"></ul>
+      </div>
 
-    <h2 class="text-2xl font-bold mb-2">Top Members</h2>
-    <ul id="top-members" class="grid md:grid-cols-3 gap-4 mb-8"></ul>
-
-    <h2 class="text-2xl font-bold mb-2">Top Channels</h2>
-    <ul id="top-channels" class="grid md:grid-cols-3 gap-4 mb-8"></ul>
-
-    <h2 class="text-2xl font-bold mb-2">Top Emojis</h2>
-    <ul id="top-emojis" class="grid md:grid-cols-3 gap-4 mb-8"></ul>
+      <div>
+        <h2 class="text-xl font-bold mb-3">Top Emojis</h2>
+        <ul id="top-emojis" class="space-y-3"></ul>
+      </div>
+    </section>
 
   </main>
 
+  <footer class="bg-gray-800 text-gray-400 text-center p-4">
+    &copy; 2026 Discord Analytics
+  </footer>
+
   <script>
-    document.addEventListener('DOMContentLoaded', async () => {
+    async function loadDashboard() {
+      const status = document.getElementById("status");
       const params = new URLSearchParams(window.location.search);
-      const guildId = params.get('guildId');
-      if(!guildId) { alert('No guild selected'); window.location.href='/guilds.html'; return; }
+      const guildId = params.get("guildId");
 
-      // Fetch analytics from backend
-      const res = await fetch(`/api/servers/${guildId}/analytics`);
-      const data = await res.json();
+      if (!guildId) {
+        window.location.href = "/guilds.html";
+        return;
+      }
 
-      // Overview
-      document.getElementById('guild-name').textContent = data.name;
-      document.getElementById('members-count').textContent = data.members;
-      document.getElementById('bots-count').textContent = data.bots;
-      document.getElementById('boosts-count').textContent = data.boosts;
+      try {
+        const res = await fetch(`/api/servers/${guildId}/analytics`);
 
-      // Messages Chart
-      new Chart(document.getElementById('messagesChart').getContext('2d'), {
-        type: 'bar',
-        data: { labels: data.timeline.labels, datasets: [{ label: 'Messages', data: data.timeline.messages, backgroundColor:'#3b82f6' }] },
-        options: { responsive:true, plugins:{legend:{display:false}} }
-      });
+        // Not authenticated
+        if (res.status === 401) {
+          window.location.href = "/";
+          return;
+        }
 
-      // Top Members
-      const topMembers = document.getElementById('top-members');
-      data.topMembers.forEach(m => {
-        const li = document.createElement('li');
-        li.className = 'bg-gray-700 p-3 rounded';
-        li.textContent = `${m.username}: ${m.count} msgs`;
-        topMembers.appendChild(li);
-      });
+        if (!res.ok) {
+          throw new Error("Failed to load analytics");
+        }
 
-      // Top Channels
-      const topChannels = document.getElementById('top-channels');
-      data.topChannels.forEach(c => {
-        const li = document.createElement('li');
-        li.className = 'bg-gray-700 p-3 rounded';
-        li.textContent = `${c.name}: ${c.count} msgs`;
-        topChannels.appendChild(li);
-      });
+        const data = await res.json();
 
-      // Top Emojis
-      const topEmojis = document.getElementById('top-emojis');
-      data.topEmojis.forEach(e => {
-        const li = document.createElement('li');
-        li.className = 'bg-gray-700 p-3 rounded text-center';
-        li.textContent = `${e.emoji}: ${e.count}`;
-        topEmojis.appendChild(li);
-      });
-    });
+        // Header
+        document.getElementById("guild-name").textContent = data.name || "Server Dashboard";
+
+        // Overview
+        document.getElementById("members-count").textContent = data.members ?? "—";
+        document.getElementById("bots-count").textContent = data.bots ?? "—";
+        document.getElementById("boosts-count").textContent = data.boosts ?? "—";
+
+        status.remove();
+
+        // Chart
+        if (data.timeline?.labels?.length) {
+          new Chart(
+            document.getElementById("messagesChart"),
+            {
+              type: "bar",
+              data: {
+                labels: data.timeline.labels,
+                datasets: [{
+                  label: "Messages",
+                  data: data.timeline.messages,
+                  backgroundColor: "#3b82f6"
+                }]
+              },
+              options: {
+                responsive: true,
+                plugins: { legend: { display: false } }
+              }
+            }
+          );
+        }
+
+        // Helpers
+        function fillList(el, items, formatter) {
+          if (!items?.length) {
+            el.innerHTML = `<li class="text-gray-500">No data</li>`;
+            return;
+          }
+
+          items.forEach(item => {
+            const li = document.createElement("li");
+            li.className = "bg-gray-800 p-3 rounded";
+            li.textContent = formatter(item);
+            el.appendChild(li);
+          });
+        }
+
+        fillList(
+          document.getElementById("top-members"),
+          data.topMembers,
+          m => `${m.username} — ${m.count} msgs`
+        );
+
+        fillList(
+          document.getElementById("top-channels"),
+          data.topChannels,
+          c => `#${c.name} — ${c.count} msgs`
+        );
+
+        fillList(
+          document.getElementById("top-emojis"),
+          data.topEmojis,
+          e => `${e.emoji} × ${e.count}`
+        );
+
+      } catch (err) {
+        console.error(err);
+        status.textContent = "Failed to load server analytics.";
+      }
+    }
+
+    loadDashboard();
   </script>
 
 </body>
