@@ -32,6 +32,14 @@
     </div>
   </div>
 
+  <!-- TIME SWITCH -->
+  <div class="flex gap-3 mb-6">
+    <button class="time-btn px-4 py-2 rounded bg-zinc-700 hover:bg-zinc-600" data-window="24h">24h</button>
+    <button class="time-btn px-4 py-2 rounded bg-zinc-700 hover:bg-zinc-600" data-window="7d">7d</button>
+    <button class="time-btn px-4 py-2 rounded bg-zinc-700 hover:bg-zinc-600" data-window="30d">30d</button>
+    <button class="time-btn px-4 py-2 rounded bg-zinc-700 hover:bg-zinc-600" data-window="overall">Overall</button>
+  </div>
+
   <!-- OVERVIEW CARDS -->
   <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
 
@@ -116,45 +124,21 @@
 
 <!-- STYLES -->
 <style>
-.stat {
-  padding: 1.25rem;
-  border-radius: 0.75rem;
-  border: 1px solid #27272a;
-  background: rgba(24,24,27,0.6);
-}
-.stat .label {
-  font-size: .75rem;
-  text-transform: uppercase;
-  letter-spacing: .08em;
-  color: #a1a1aa;
-}
-.stat .value {
-  font-size: 2rem;
-  font-weight: 700;
-}
-.stat .sub {
-  font-size: .75rem;
-  color: #71717a;
-}
-
-.card {
-  padding: 1.25rem;
-  border-radius: 0.75rem;
-  border: 1px solid #27272a;
-  background: rgba(24,24,27,0.6);
-}
-.card .title {
-  font-weight: 600;
-  margin-bottom: .75rem;
-}
+.stat { padding: 1.25rem; border-radius: 0.75rem; border: 1px solid #27272a; background: rgba(24,24,27,0.6); }
+.stat .label { font-size: .75rem; text-transform: uppercase; letter-spacing: .08em; color: #a1a1aa; }
+.stat .value { font-size: 2rem; font-weight: 700; }
+.stat .sub { font-size: .75rem; color: #71717a; }
+.card { padding: 1.25rem; border-radius: 0.75rem; border: 1px solid #27272a; background: rgba(24,24,27,0.6); }
+.card .title { font-weight: 600; margin-bottom: .75rem; }
+.time-btn.active { background-color: #2563eb; color: #fff; }
 </style>
 
 <!-- SCRIPT -->
 <script>
 const params = new URLSearchParams(window.location.search);
 const guildId = params.get("guildId");
-
 let msgChart, presenceChart;
+let currentWindow = "24h";
 
 async function fetchData() {
   if (!guildId) return location.href = "/guilds.html";
@@ -166,10 +150,7 @@ async function fetchData() {
 function fillList(id, items, format) {
   const el = document.getElementById(id);
   el.innerHTML = "";
-  if (!items?.length) {
-    el.innerHTML = "<li class='text-zinc-500'>No data</li>";
-    return;
-  }
+  if (!items?.length) return el.innerHTML = "<li class='text-zinc-500'>No data</li>";
   items.forEach(i => {
     const li = document.createElement("li");
     li.textContent = format(i);
@@ -178,18 +159,24 @@ function fillList(id, items, format) {
 }
 
 function renderCharts(data) {
+  const timelineData = data.timeline[currentWindow] || {};
+  
+  // Messages per member chart
   if (msgChart) msgChart.destroy();
   msgChart = new Chart(document.getElementById("msgChart"), {
     type: "bar",
     data: {
       labels: data.topMembers.map(m => m.username),
       datasets: [{
-        data: data.topMembers.map(m => m.count)
+        label: `Messages (${currentWindow})`,
+        data: data.topMembers.map(m => m.count),
+        backgroundColor: "rgba(59,130,246,0.7)"
       }]
     },
-    options: { plugins: { legend: { display: false } } }
+    options: { plugins: { legend: { display: false } }, responsive:true, maintainAspectRatio:false }
   });
 
+  // Presence chart
   if (presenceChart) presenceChart.destroy();
   presenceChart = new Chart(document.getElementById("presenceChart"), {
     type: "doughnut",
@@ -201,20 +188,21 @@ function renderCharts(data) {
           data.overview.idle,
           data.overview.dnd,
           data.overview.offline
-        ]
+        ],
+        backgroundColor: ['#10B981','#FACC15','#F87171','#6B7280']
       }]
-    }
+    },
+    options: { plugins:{legend:{labels:{color:'#fff'}}}, responsive:true, maintainAspectRatio:false }
   });
 }
 
 async function render() {
   const data = await fetchData();
-
   const o = data.overview;
+  
   document.getElementById("serverName").textContent = o.name;
-  document.getElementById("serverIcon").src =
-    o.iconURL || "https://cdn.discordapp.com/embed/avatars/0.png";
-
+  document.getElementById("serverIcon").src = o.iconURL || "https://cdn.discordapp.com/embed/avatars/0.png";
+  
   membersTotal.textContent = o.members;
   membersHumans.textContent = o.humans;
   membersBots.textContent = o.bots;
@@ -231,6 +219,19 @@ async function render() {
 
   renderCharts(data);
 }
+
+// SWITCH TIME WINDOWS
+document.querySelectorAll(".time-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    currentWindow = btn.dataset.window;
+    document.querySelectorAll(".time-btn").forEach(b=>b.classList.remove("active"));
+    btn.classList.add("active");
+    render(); // re-render charts & top lists for the selected window
+  });
+});
+
+// Set default active button
+document.querySelector(`.time-btn[data-window="${currentWindow}"]`).classList.add("active");
 
 render();
 setInterval(render, 20000);
