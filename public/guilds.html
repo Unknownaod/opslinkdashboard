@@ -1,115 +1,122 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Your Servers • Discord Analytics</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Your Servers • Discord Analytics</title>
+<script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-900 text-white font-sans min-h-screen flex flex-col">
 
-  <!-- Navbar -->
-  <nav class="bg-gray-800 px-6 py-4 flex justify-between items-center shadow-md">
-    <span class="font-bold text-xl text-emerald-400">Discord Analytics</span>
-    <a href="/api/logout" class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded transition">Logout</a>
-  </nav>
+<!-- Navbar -->
+<nav class="bg-gray-800 px-6 py-4 flex justify-between items-center shadow-md">
+  <span class="font-bold text-xl text-emerald-400">Discord Analytics</span>
+  <a href="/api/logout" class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded transition">Logout</a>
+</nav>
 
-  <!-- Main -->
-  <main class="flex-1 px-6 py-10">
-    <h1 class="text-3xl font-bold text-center mb-8">Servers Overview</h1>
+<!-- Main -->
+<main class="flex-1 px-6 py-10">
+  <h1 class="text-3xl font-bold text-center mb-6">Servers Overview</h1>
+  <p id="status" class="text-center text-gray-400 mb-6">Loading your servers…</p>
 
-    <div id="status" class="text-center text-gray-400 mb-6">Loading your servers…</div>
+  <!-- Tabs -->
+  <div class="flex justify-center gap-4 mb-6">
+    <button class="tab-btn px-4 py-2 rounded bg-emerald-500 hover:bg-emerald-600" data-tab="installed">Bot Installed</button>
+    <button class="tab-btn px-4 py-2 rounded bg-yellow-500 hover:bg-yellow-600" data-tab="not-installed">Bot Not Installed</button>
+    <button class="tab-btn px-4 py-2 rounded bg-gray-600 hover:bg-gray-500" data-tab="all">All Servers</button>
+  </div>
 
-    <!-- Bot Installed Section -->
-    <section id="bot-installed" class="mb-10">
-      <h2 class="text-2xl font-semibold text-emerald-400 mb-4">Servers the Bot is Installed In</h2>
-      <div id="installed-list" class="grid gap-6 sm:grid-cols-2 md:grid-cols-3"></div>
-    </section>
+  <!-- Server lists -->
+  <div id="installed" class="server-tab grid gap-6 sm:grid-cols-2 md:grid-cols-3 mb-10"></div>
+  <div id="not-installed" class="server-tab grid gap-6 sm:grid-cols-2 md:grid-cols-3 mb-10 hidden"></div>
+  <div id="all" class="server-tab grid gap-6 sm:grid-cols-2 md:grid-cols-3 mb-10 hidden"></div>
+</main>
 
-    <!-- Bot Not Installed Section -->
-    <section id="bot-not-installed">
-      <h2 class="text-2xl font-semibold text-yellow-400 mb-4">Servers You Are In (Bot Not Installed)</h2>
-      <div id="not-installed-list" class="grid gap-6 sm:grid-cols-2 md:grid-cols-3"></div>
-    </section>
+<!-- Footer -->
+<footer class="bg-gray-800 text-gray-400 text-center p-4">
+  &copy; 2026 Discord Analytics
+</footer>
 
-  </main>
+<script>
+async function loadServers() {
+  const status = document.getElementById("status");
+  const installedList = document.getElementById("installed");
+  const notInstalledList = document.getElementById("not-installed");
+  const allList = document.getElementById("all");
 
-  <!-- Footer -->
-  <footer class="bg-gray-800 text-gray-400 text-center p-4">
-    &copy; 2026 Discord Analytics
-  </footer>
+  try {
+    const userRes = await fetch("/api/user-guilds");
+    if (userRes.status === 401) return window.location.href = "/";
+    const userGuilds = await userRes.json();
 
-  <script>
-    async function loadServers() {
-      const status = document.getElementById("status");
-      const installedList = document.getElementById("installed-list");
-      const notInstalledList = document.getElementById("not-installed-list");
+    const botRes = await fetch("/api/bot-guilds");
+    const botGuilds = await botRes.json();
 
-      try {
-        // Fetch user guilds
-        const userRes = await fetch("/api/user-guilds");
-        if (userRes.status === 401) return window.location.href = "/";
-        if (!userRes.ok) throw new Error("Failed to fetch your servers");
-        const userGuilds = await userRes.json();
+    const botGuildIds = new Set(botGuilds.map(g => g.id));
 
-        // Fetch bot guilds
-        const botRes = await fetch("/api/bot-guilds");
-        if (!botRes.ok) throw new Error("Failed to fetch bot servers");
-        const botGuilds = await botRes.json();
+    const installed = [];
+    const notInstalled = [];
 
-        const botGuildIds = new Set(botGuilds.map(g => g.id));
+    userGuilds.forEach(g => {
+      if (botGuildIds.has(g.id)) installed.push(g);
+      else notInstalled.push(g);
+    });
 
-        const installed = [];
-        const notInstalled = [];
+    status.remove();
 
-        userGuilds.forEach(g => {
-          if (botGuildIds.has(g.id)) installed.push(g);
-          else notInstalled.push(g);
-        });
+    function createCard(guild, installed) {
+      const card = document.createElement("div");
+      card.className = "bg-gray-800 rounded-xl p-6 flex flex-col items-center text-center shadow hover:bg-gray-700 transition";
 
-        status.remove();
+      const icon = document.createElement("img");
+      icon.src = guild.icon ? `https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.png?size=128` : "https://cdn.discordapp.com/embed/avatars/0.png";
+      icon.alt = guild.name;
+      icon.className = "h-20 w-20 rounded-full mb-4 border border-gray-700";
 
-        function createCard(guild, installed) {
-          const card = document.createElement("div");
-          card.className = "bg-gray-800 rounded-xl p-6 flex flex-col items-center text-center shadow hover:bg-gray-700 transition";
+      const name = document.createElement("h3");
+      name.textContent = guild.name;
+      name.className = "font-semibold text-lg mb-4";
 
-          const icon = document.createElement("img");
-          icon.src = guild.icon
-            ? `https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.png?size=128`
-            : "https://cdn.discordapp.com/embed/avatars/0.png";
-          icon.alt = guild.name;
-          icon.className = "h-20 w-20 rounded-full mb-4 border border-gray-700";
-
-          const name = document.createElement("h3");
-          name.textContent = guild.name;
-          name.className = "font-semibold text-lg mb-4";
-
-          const button = document.createElement("a");
-          if (installed) {
-            button.href = `/dashboard.html?guildId=${guild.id}`;
-            button.textContent = "View Dashboard";
-            button.className = "mt-auto bg-emerald-500 hover:bg-emerald-600 px-4 py-2 rounded transition";
-          } else {
-            button.href = `https://discord.com/oauth2/authorize?client_id=YOUR_BOT_ID&scope=bot&guild_id=${guild.id}`;
-            button.textContent = "Add Bot";
-            button.className = "mt-auto bg-yellow-500 hover:bg-yellow-600 px-4 py-2 rounded transition";
-          }
-
-          card.append(icon, name, button);
-          return card;
-        }
-
-        installed.forEach(g => installedList.appendChild(createCard(g, true)));
-        notInstalled.forEach(g => notInstalledList.appendChild(createCard(g, false)));
-
-      } catch (err) {
-        console.error(err);
-        status.textContent = "Failed to load servers.";
+      const button = document.createElement("a");
+      if (installed) {
+        button.href = `/dashboard.html?guildId=${guild.id}`;
+        button.textContent = "View Dashboard";
+        button.className = "mt-auto bg-emerald-500 hover:bg-emerald-600 px-4 py-2 rounded transition";
+      } else {
+        button.href = `https://discord.com/oauth2/authorize?client_id=1466430352238055587&scope=bot&guild_id=${guild.id}`;
+        button.textContent = "Add Bot";
+        button.className = "mt-auto bg-yellow-500 hover:bg-yellow-600 px-4 py-2 rounded transition";
       }
+
+      card.append(icon, name, button);
+      return card;
     }
 
-    loadServers();
-  </script>
+    installed.forEach(g => installedList.appendChild(createCard(g, true)));
+    notInstalled.forEach(g => notInstalledList.appendChild(createCard(g, false)));
+    userGuilds.forEach(g => allList.appendChild(createCard(g, botGuildIds.has(g.id))));
+
+  } catch (err) {
+    console.error(err);
+    status.textContent = "Failed to load servers.";
+  }
+}
+
+// Tab switching
+document.addEventListener("click", e => {
+  if (!e.target.classList.contains("tab-btn")) return;
+  const tab = e.target.dataset.tab;
+  document.querySelectorAll(".server-tab").forEach(t => t.classList.add("hidden"));
+  document.getElementById(tab).classList.remove("hidden");
+
+  document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("ring-2", "ring-emerald-400", "ring-yellow-400"));
+  if(tab === "installed") e.target.classList.add("ring-2", "ring-emerald-400");
+  if(tab === "not-installed") e.target.classList.add("ring-2", "ring-yellow-400");
+  if(tab === "all") e.target.classList.add("ring-2", "ring-gray-400");
+});
+
+loadServers();
+</script>
 
 </body>
 </html>
