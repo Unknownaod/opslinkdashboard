@@ -27,7 +27,7 @@ function topN(map, n = 10) {
 }
 
 // =======================
-// Windows (ms)
+// Time windows (ms)
 // =======================
 const WINDOWS_MS = {
   "24h": 24 * 60 * 60 * 1000,
@@ -52,16 +52,17 @@ export default async function handler(req, res) {
     // =======================
     const snapshotDocs = await Snapshots.find({ guildId })
       .sort({ timestamp: -1 })
-      .limit(100) // keep enough to cover 30d window
+      .limit(100) // enough to cover 30d window
       .toArray();
 
     if (!snapshotDocs.length)
       return res.status(404).json({ error: "No snapshot data found" });
 
     const latest = snapshotDocs[0];
+    const now = Date.now();
 
     // =======================
-    // Overview from latest snapshot
+    // Overview
     // =======================
     const overview = {
       name: latest.name || "Unknown Guild",
@@ -83,10 +84,8 @@ export default async function handler(req, res) {
       topVoice: latest.topVoice || {}
     };
 
-    const now = Date.now();
-
     // =======================
-    // Timeline for 24h, 7d, 30d, overall
+    // Timeline (messages, joins, leaves, boosts)
     // =======================
     const timeline = {};
     for (const [label, ms] of Object.entries(WINDOWS_MS)) {
@@ -103,26 +102,64 @@ export default async function handler(req, res) {
     }
 
     // =======================
-    // Top members, channels, emojis, roles, stickers, threads, voice
+    // Top Members
     // =======================
     const topMembers = topN(latest.topMessages).map(x => {
       const [userId, username] = x.key.split(":");
       return { userId, username, count: x.count };
     });
 
-    const topChannels = topN(latest.channels).map(x => ({ name: x.key, count: x.count }));
-    const topEmojis = topN(latest.emojis).map(x => ({ emoji: x.key, count: x.count }));
-    const topRoles = topN(latest.roles).map(x => ({ role: x.key, count: x.count }));
-    const topStickers = topN(latest.stickers).map(x => ({ sticker: x.key, count: x.count }));
-    const topThreads = topN(latest.threads).map(x => ({ thread: x.key, count: x.count }));
+    // =======================
+    // Top Channels
+    // =======================
+    const topChannels = topN(latest.channels).map(x => ({
+      id: x.key,             // preserve channel ID if stored
+      name: latest.channels[x.key]?.name || x.key,
+      count: x.count
+    }));
 
+    // =======================
+    // Top Emojis
+    // =======================
+    const topEmojis = topN(latest.emojis).map(x => ({
+      emoji: x.key,
+      count: x.count
+    }));
+
+    // =======================
+    // Top Roles
+    // =======================
+    const topRoles = topN(latest.roles).map(x => ({
+      role: latest.roles[x.key]?.name || x.key,
+      count: x.count
+    }));
+
+    // =======================
+    // Top Stickers
+    // =======================
+    const topStickers = topN(latest.stickers).map(x => ({
+      sticker: latest.stickers[x.key]?.name || x.key,
+      count: x.count
+    }));
+
+    // =======================
+    // Top Threads
+    // =======================
+    const topThreads = topN(latest.threads).map(x => ({
+      thread: latest.threads[x.key]?.name || x.key,
+      count: x.count
+    }));
+
+    // =======================
+    // Top Voice
+    // =======================
     const topVoice = topN(latest.topVoice).map(x => {
       const [userId, username] = x.key.split(":");
       return { userId, username, count: x.count };
     });
 
     // =======================
-    // Return everything
+    // Return full payload
     // =======================
     res.status(200).json({
       overview,
