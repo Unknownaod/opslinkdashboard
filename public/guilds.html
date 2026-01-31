@@ -6,24 +6,24 @@
 <title>Your Servers • Discord Analytics</title>
 <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-900 text-white font-sans min-h-screen flex flex-col">
+<body class="bg-gradient-to-br from-black via-zinc-900 to-black text-white font-sans min-h-screen flex flex-col">
 
 <!-- Navbar -->
-<nav class="bg-gray-800 px-6 py-4 flex justify-between items-center shadow-md">
-  <span class="font-bold text-2xl text-emerald-400">Discord Analytics</span>
+<nav class="flex items-center justify-between px-10 py-6 border-b border-zinc-800 shadow-md">
+  <span class="text-2xl font-bold text-emerald-400">Discord Analytics</span>
   <a href="/api/logout" class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded transition">Logout</a>
 </nav>
 
 <!-- Main -->
-<main class="flex-1 px-6 py-10">
-  <h1 class="text-3xl font-bold text-center mb-6">Servers Overview</h1>
-  <p id="status" class="text-center text-gray-400 mb-6">Loading your servers…</p>
+<main class="flex-1 px-10 py-10 max-w-7xl mx-auto">
+  <h1 class="text-3xl font-bold text-center mb-8">Servers Overview</h1>
+  <p id="status" class="text-center text-zinc-400 mb-6">Loading your servers…</p>
 
   <!-- Tabs -->
-  <div class="flex justify-center gap-4 mb-8">
+  <div class="flex justify-center gap-4 mb-10">
     <button class="tab-btn px-5 py-2 rounded bg-emerald-500 hover:bg-emerald-600 ring-2 ring-emerald-400" data-tab="installed">Bot Installed</button>
     <button class="tab-btn px-5 py-2 rounded bg-yellow-500 hover:bg-yellow-600" data-tab="not-installed">Bot Not Installed</button>
-    <button class="tab-btn px-5 py-2 rounded bg-gray-600 hover:bg-gray-500" data-tab="all">All Servers</button>
+    <button class="tab-btn px-5 py-2 rounded bg-gray-700 hover:bg-gray-600" data-tab="all">All Servers</button>
   </div>
 
   <!-- Server lists -->
@@ -33,7 +33,7 @@
 </main>
 
 <!-- Footer -->
-<footer class="bg-gray-800 text-gray-400 text-center p-4">
+<footer class="bg-zinc-800 text-zinc-400 text-center p-4">
   &copy; 2026 Discord Analytics
 </footer>
 
@@ -53,12 +53,12 @@ async function loadServers() {
 
     function createCard(guild, installed) {
       const card = document.createElement("div");
-      card.className = "bg-gray-800 rounded-xl p-6 flex flex-col items-center text-center shadow hover:bg-gray-700 transition";
+      card.className = "bg-zinc-900 rounded-2xl p-6 flex flex-col items-center text-center shadow-lg hover:shadow-xl hover:bg-zinc-800 transition duration-300";
 
       const icon = document.createElement("img");
       icon.src = guild.icon ? `https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.png?size=128` : "https://cdn.discordapp.com/embed/avatars/0.png";
       icon.alt = guild.name;
-      icon.className = "h-20 w-20 rounded-full mb-4 border border-gray-700";
+      icon.className = "h-24 w-24 rounded-full mb-4 border-2 border-zinc-700";
 
       const name = document.createElement("h3");
       name.textContent = guild.name;
@@ -68,18 +68,17 @@ async function loadServers() {
       if (installed) {
         button.href = `/dashboard.html?guildId=${guild.id}`;
         button.textContent = "View Dashboard";
-        button.className = "mt-auto bg-emerald-500 hover:bg-emerald-600 px-4 py-2 rounded transition w-full text-center";
+        button.className = "mt-auto bg-emerald-500 hover:bg-emerald-600 px-5 py-2 rounded-full transition w-full text-center font-medium";
       } else {
         button.href = guild.addBotLink || `https://discord.com/oauth2/authorize?client_id=1466430352238055587&scope=bot&permissions=8&guild_id=${guild.id}`;
         button.textContent = "Add Bot";
-        button.className = "mt-auto bg-yellow-500 hover:bg-yellow-600 px-4 py-2 rounded transition w-full text-center";
+        button.className = "mt-auto bg-yellow-500 hover:bg-yellow-600 px-5 py-2 rounded-full transition w-full text-center font-medium";
       }
 
       card.append(icon, name, button);
       return card;
     }
 
-    // Populate tabs
     inBotAndUser.forEach(g => installedList.appendChild(createCard(g, true)));
     userNotInBot.forEach(g => notInstalledList.appendChild(createCard(g, false)));
     [...inBotAndUser, ...userNotInBot].forEach(g => allList.appendChild(createCard(g, inBotAndUser.some(ig => ig.id === g.id))));
