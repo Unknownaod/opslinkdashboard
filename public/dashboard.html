@@ -19,7 +19,8 @@
 </nav>
 
 <!-- DASHBOARD -->
-<section class="px-10 py-10 max-w-6xl mx-auto">
+<section class="px-10 py-10 max-w-7xl mx-auto">
+
   <!-- Header -->
   <div class="flex items-center gap-6 mb-6">
     <img id="serverIcon" src="" class="w-20 h-20 rounded-lg border border-zinc-700" alt="Server Icon">
@@ -45,20 +46,22 @@
         Joins: <span id="membersJoins">0</span> | Leaves: <span id="membersLeaves">0</span>
       </p>
     </div>
+
     <div class="p-4 rounded border border-zinc-700 bg-zinc-900/50">
       <h2 class="font-semibold mb-2">Channels & Boosts</h2>
       <p>Text: <span id="channelsText">0</span> | Voice: <span id="channelsVoice">0</span></p>
       <p>Categories: <span id="channelsCat">0</span> | Threads: <span id="channelsThreads">0</span></p>
       <p>Boosts: <span id="serverBoosts">0</span></p>
     </div>
+
     <div class="p-4 rounded border border-zinc-700 bg-zinc-900/50">
       <h2 class="font-semibold mb-2">Top Members</h2>
       <ol id="topMembers" class="list-decimal list-inside text-sm text-zinc-300 max-h-64 overflow-y-auto"></ol>
     </div>
   </div>
 
-  <!-- Top Channels & Emojis -->
-  <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+  <!-- Top Lists -->
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
     <div class="p-4 rounded border border-zinc-700 bg-zinc-900/50">
       <h2 class="font-semibold mb-2">Top Channels</h2>
       <ol id="topChannels" class="list-decimal list-inside text-sm text-zinc-300 max-h-64 overflow-y-auto"></ol>
@@ -66,6 +69,22 @@
     <div class="p-4 rounded border border-zinc-700 bg-zinc-900/50">
       <h2 class="font-semibold mb-2">Top Emojis</h2>
       <ol id="topEmojis" class="list-decimal list-inside text-sm text-zinc-300 max-h-64 overflow-y-auto"></ol>
+    </div>
+    <div class="p-4 rounded border border-zinc-700 bg-zinc-900/50">
+      <h2 class="font-semibold mb-2">Top Roles</h2>
+      <ol id="topRoles" class="list-decimal list-inside text-sm text-zinc-300 max-h-64 overflow-y-auto"></ol>
+    </div>
+    <div class="p-4 rounded border border-zinc-700 bg-zinc-900/50">
+      <h2 class="font-semibold mb-2">Top Stickers</h2>
+      <ol id="topStickers" class="list-decimal list-inside text-sm text-zinc-300 max-h-64 overflow-y-auto"></ol>
+    </div>
+    <div class="p-4 rounded border border-zinc-700 bg-zinc-900/50">
+      <h2 class="font-semibold mb-2">Top Voice Channels</h2>
+      <ol id="topVoiceChannels" class="list-decimal list-inside text-sm text-zinc-300 max-h-64 overflow-y-auto"></ol>
+    </div>
+    <div class="p-4 rounded border border-zinc-700 bg-zinc-900/50">
+      <h2 class="font-semibold mb-2">Top Threads</h2>
+      <ol id="topThreads" class="list-decimal list-inside text-sm text-zinc-300 max-h-64 overflow-y-auto"></ol>
     </div>
   </div>
 
@@ -92,11 +111,19 @@
     </div>
   </div>
 
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+    <div class="p-4 rounded border border-zinc-700 bg-zinc-900/50">
+      <h2 class="font-semibold mb-2">Threads Usage</h2>
+      <canvas id="threadsChart"></canvas>
+    </div>
+  </div>
+
   <!-- Comments -->
   <div class="p-4 rounded border border-zinc-700 bg-zinc-900/50 mb-6">
     <h2 class="font-semibold mb-2">Recent Comments / Events</h2>
     <div id="commentsContainer" class="flex flex-col gap-3 max-h-64 overflow-y-auto"></div>
   </div>
+
 </section>
 
 <footer class="px-10 py-10 border-t border-zinc-800 text-sm text-zinc-400 flex justify-between">
@@ -108,7 +135,7 @@
 const params = new URLSearchParams(window.location.search);
 const guildId = params.get('guildId');
 
-let msgChart, presenceChart, rolesChart, voiceChart;
+let msgChart, presenceChart, rolesChart, voiceChart, threadsChart;
 
 async function fetchData() {
   try {
@@ -154,6 +181,10 @@ function renderDashboard(data) {
   fillList('topMembers', data.topMembers, 'member');
   fillList('topChannels', data.topChannels, 'channel');
   fillList('topEmojis', data.topEmojis, 'emoji');
+  fillList('topRoles', data.topRoles, 'role');
+  fillList('topStickers', data.topStickers, 'sticker');
+  fillList('topVoiceChannels', data.topVoiceChannels, 'voice');
+  fillList('topThreads', data.topThreads, 'thread');
 
   // Charts
   renderCharts(data);
@@ -165,27 +196,30 @@ function fillList(id, items, type){
   if(!items?.length) return el.innerHTML = '<li class="text-zinc-400">No data</li>';
   items.forEach(item => {
     const li = document.createElement('li');
-    li.textContent = type==='member'?`${item.username} (${item.count})`
-                    :type==='channel'?`${item.name} (${item.count})`
-                    :type==='emoji'?`${item.emoji} (${item.count})`:JSON.stringify(item);
+    switch(type){
+      case 'member': li.textContent = `${item.key} (${item.count})`; break;
+      case 'channel': li.textContent = `${item.key} (${item.count})`; break;
+      case 'emoji': li.textContent = `${item.key} (${item.count})`; break;
+      case 'role': li.textContent = `${item.key} (${item.count})`; break;
+      case 'sticker': li.textContent = `${item.key} (${item.count})`; break;
+      case 'voice': li.textContent = `${item.key} (${item.count})`; break;
+      case 'thread': li.textContent = `${item.key} (${item.count})`; break;
+      default: li.textContent = JSON.stringify(item);
+    }
     el.appendChild(li);
   });
 }
 
 function renderCharts(data){
-  const membersLabels = data.topMembers.map(m=>m.username);
+  const membersLabels = data.topMembers.map(m=>m.key);
   const membersValues = data.topMembers.map(m=>m.count);
-
   const presenceData = [data.overview.online, data.overview.idle, data.overview.dnd, data.overview.offline];
 
   // Messages per member
   if(msgChart) msgChart.destroy();
   msgChart = new Chart(document.getElementById('msgChart'), {
     type:'bar',
-    data:{
-      labels: membersLabels,
-      datasets:[{label:'Messages', data:membersValues, backgroundColor:'rgba(59,130,246,0.7)'}]
-    },
+    data:{ labels: membersLabels, datasets:[{label:'Messages', data:membersValues, backgroundColor:'rgba(59,130,246,0.7)'}] },
     options:{plugins:{legend:{display:false}}, responsive:true}
   });
 
@@ -193,15 +227,12 @@ function renderCharts(data){
   if(presenceChart) presenceChart.destroy();
   presenceChart = new Chart(document.getElementById('presenceChart'),{
     type:'doughnut',
-    data:{
-      labels:['Online','Idle','DND','Offline'],
-      datasets:[{data:presenceData, backgroundColor:['#10B981','#FACC15','#F87171','#6B7280']}]
-    }
+    data:{ labels:['Online','Idle','DND','Offline'], datasets:[{data:presenceData, backgroundColor:['#10B981','#FACC15','#F87171','#6B7280']}] }
   });
 
-  // Optional: Roles & Voice Channels if data available
+  // Roles
   if(data.topRoles){
-    const roleLabels = data.topRoles.map(r=>r.name);
+    const roleLabels = data.topRoles.map(r=>r.key);
     const roleValues = data.topRoles.map(r=>r.count);
     if(rolesChart) rolesChart.destroy();
     rolesChart = new Chart(document.getElementById('rolesChart'),{
@@ -210,8 +241,10 @@ function renderCharts(data){
       options:{plugins:{legend:{display:false}}, responsive:true}
     });
   }
+
+  // Voice Channels
   if(data.topVoiceChannels){
-    const voiceLabels = data.topVoiceChannels.map(v=>v.name);
+    const voiceLabels = data.topVoiceChannels.map(v=>v.key);
     const voiceValues = data.topVoiceChannels.map(v=>v.count);
     if(voiceChart) voiceChart.destroy();
     voiceChart = new Chart(document.getElementById('voiceChart'),{
@@ -221,13 +254,25 @@ function renderCharts(data){
     });
   }
 
-  // Comments / Events
+  // Threads
+  if(data.topThreads){
+    const threadLabels = data.topThreads.map(t=>t.key);
+    const threadValues = data.topThreads.map(t=>t.count);
+    if(threadsChart) threadsChart.destroy();
+    threadsChart = new Chart(document.getElementById('threadsChart'),{
+      type:'bar',
+      data:{labels:threadLabels,datasets:[{label:'Messages',data:threadValues,backgroundColor:'rgba(245,158,11,0.7)'}]},
+      options:{plugins:{legend:{display:false}}, responsive:true}
+    });
+  }
+
+  // Recent Events
   const commentsContainer = document.getElementById('commentsContainer');
   commentsContainer.innerHTML = '';
   (data.events||[]).slice(-10).forEach(ev=>{
     const div = document.createElement('div');
     div.className='p-2 border-b border-zinc-700';
-    div.textContent = `[${new Date(ev.timestamp).toLocaleString()}] ${ev.type} by ${ev.data?.userId||'N/A'}`;
+    div.textContent = `[${new Date(ev.timestamp).toLocaleString()}] ${ev.type} by ${ev.data?.userId || 'N/A'}`;
     commentsContainer.appendChild(div);
   });
 }
