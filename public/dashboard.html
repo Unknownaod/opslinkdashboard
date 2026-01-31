@@ -24,7 +24,7 @@
 <section class="px-10 py-10 max-w-7xl mx-auto">
 
   <!-- HEADER -->
-  <div class="flex items-center gap-6 mb-10">
+  <div class="flex items-center gap-6 mb-6">
     <img id="serverIcon" class="w-20 h-20 rounded-xl border border-zinc-700 bg-zinc-800" />
     <div>
       <h1 id="serverName" class="text-4xl font-bold tracking-tight">Loading…</h1>
@@ -33,11 +33,11 @@
   </div>
 
   <!-- TIME SWITCH -->
-  <div class="flex gap-3 mb-6">
-    <button class="time-btn px-4 py-2 rounded bg-zinc-700 hover:bg-zinc-600" data-window="24h">24h</button>
-    <button class="time-btn px-4 py-2 rounded bg-zinc-700 hover:bg-zinc-600" data-window="7d">7d</button>
-    <button class="time-btn px-4 py-2 rounded bg-zinc-700 hover:bg-zinc-600" data-window="30d">30d</button>
-    <button class="time-btn px-4 py-2 rounded bg-zinc-700 hover:bg-zinc-600" data-window="overall">Overall</button>
+  <div class="flex gap-4 mb-6">
+    <button class="time-btn px-4 py-2 rounded bg-zinc-800" data-window="24h">24h</button>
+    <button class="time-btn px-4 py-2 rounded bg-zinc-800" data-window="7d">7d</button>
+    <button class="time-btn px-4 py-2 rounded bg-zinc-800" data-window="30d">30d</button>
+    <button class="time-btn px-4 py-2 rounded bg-zinc-800" data-window="overall">Overall</button>
   </div>
 
   <!-- OVERVIEW CARDS -->
@@ -115,6 +115,20 @@
 
   </div>
 
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
+
+    <div class="card h-80">
+      <h2 class="title">Joins / Leaves</h2>
+      <canvas id="joinLeaveChart"></canvas>
+    </div>
+
+    <div class="card h-80">
+      <h2 class="title">Server Boosts Timeline</h2>
+      <canvas id="boostChart"></canvas>
+    </div>
+
+  </div>
+
 </section>
 
 <footer class="px-10 py-8 border-t border-zinc-800 text-xs text-zinc-500 flex justify-between">
@@ -124,21 +138,32 @@
 
 <!-- STYLES -->
 <style>
-.stat { padding: 1.25rem; border-radius: 0.75rem; border: 1px solid #27272a; background: rgba(24,24,27,0.6); }
+.stat {
+  padding: 1.25rem;
+  border-radius: 0.75rem;
+  border: 1px solid #27272a;
+  background: rgba(24,24,27,0.6);
+}
 .stat .label { font-size: .75rem; text-transform: uppercase; letter-spacing: .08em; color: #a1a1aa; }
 .stat .value { font-size: 2rem; font-weight: 700; }
 .stat .sub { font-size: .75rem; color: #71717a; }
-.card { padding: 1.25rem; border-radius: 0.75rem; border: 1px solid #27272a; background: rgba(24,24,27,0.6); }
+
+.card {
+  padding: 1.25rem;
+  border-radius: 0.75rem;
+  border: 1px solid #27272a;
+  background: rgba(24,24,27,0.6);
+}
 .card .title { font-weight: 600; margin-bottom: .75rem; }
-.time-btn.active { background-color: #2563eb; color: #fff; }
 </style>
 
 <!-- SCRIPT -->
 <script>
 const params = new URLSearchParams(window.location.search);
 const guildId = params.get("guildId");
-let msgChart, presenceChart;
 let currentWindow = "24h";
+
+let msgChart, presenceChart, joinLeaveChart, boostChart;
 
 async function fetchData() {
   if (!guildId) return location.href = "/guilds.html";
@@ -150,7 +175,10 @@ async function fetchData() {
 function fillList(id, items, format) {
   const el = document.getElementById(id);
   el.innerHTML = "";
-  if (!items?.length) return el.innerHTML = "<li class='text-zinc-500'>No data</li>";
+  if (!items?.length) {
+    el.innerHTML = "<li class='text-zinc-500'>No data</li>";
+    return;
+  }
   items.forEach(i => {
     const li = document.createElement("li");
     li.textContent = format(i);
@@ -159,50 +187,65 @@ function fillList(id, items, format) {
 }
 
 function renderCharts(data) {
-  const timelineData = data.timeline[currentWindow] || {};
-  
-  // Messages per member chart
-  if (msgChart) msgChart.destroy();
+  // Messages
+  if(msgChart) msgChart.destroy();
   msgChart = new Chart(document.getElementById("msgChart"), {
     type: "bar",
     data: {
       labels: data.topMembers.map(m => m.username),
-      datasets: [{
-        label: `Messages (${currentWindow})`,
-        data: data.topMembers.map(m => m.count),
-        backgroundColor: "rgba(59,130,246,0.7)"
-      }]
+      datasets: [{ data: data.topMembers.map(m => m.count), backgroundColor:'rgba(59,130,246,0.7)' }]
     },
     options: { plugins: { legend: { display: false } }, responsive:true, maintainAspectRatio:false }
   });
 
-  // Presence chart
-  if (presenceChart) presenceChart.destroy();
+  // Presence
+  if(presenceChart) presenceChart.destroy();
   presenceChart = new Chart(document.getElementById("presenceChart"), {
     type: "doughnut",
     data: {
       labels: ["Online", "Idle", "DND", "Offline"],
       datasets: [{
-        data: [
-          data.overview.online,
-          data.overview.idle,
-          data.overview.dnd,
-          data.overview.offline
-        ],
-        backgroundColor: ['#10B981','#FACC15','#F87171','#6B7280']
+        data: [data.overview.online, data.overview.idle, data.overview.dnd, data.overview.offline],
+        backgroundColor:['#10B981','#FACC15','#F87171','#6B7280']
       }]
     },
-    options: { plugins:{legend:{labels:{color:'#fff'}}}, responsive:true, maintainAspectRatio:false }
+    options: { plugins: { legend: { labels: { color:'#fff' } } }, responsive:true, maintainAspectRatio:false }
+  });
+
+  // Joins / Leaves
+  const timeline = data.timeline[currentWindow];
+  if(joinLeaveChart) joinLeaveChart.destroy();
+  joinLeaveChart = new Chart(document.getElementById("joinLeaveChart"), {
+    type:'line',
+    data: {
+      labels: timeline.labels,
+      datasets: [
+        { label:'Joins', data: timeline.joins, borderColor:'#10B981', backgroundColor:'rgba(16,185,129,0.3)' },
+        { label:'Leaves', data: timeline.leaves, borderColor:'#F87171', backgroundColor:'rgba(248,113,113,0.3)' }
+      ]
+    },
+    options: { responsive:true, maintainAspectRatio:false }
+  });
+
+  // Boosts
+  if(boostChart) boostChart.destroy();
+  boostChart = new Chart(document.getElementById("boostChart"), {
+    type:'line',
+    data: {
+      labels: timeline.labels,
+      datasets:[{ label:'Boosts', data: timeline.boosts, borderColor:'#3B82F6', backgroundColor:'rgba(59,130,246,0.3)' }]
+    },
+    options:{ responsive:true, maintainAspectRatio:false }
   });
 }
 
 async function render() {
   const data = await fetchData();
+
   const o = data.overview;
-  
   document.getElementById("serverName").textContent = o.name;
   document.getElementById("serverIcon").src = o.iconURL || "https://cdn.discordapp.com/embed/avatars/0.png";
-  
+
   membersTotal.textContent = o.members;
   membersHumans.textContent = o.humans;
   membersBots.textContent = o.bots;
@@ -220,21 +263,18 @@ async function render() {
   renderCharts(data);
 }
 
-// SWITCH TIME WINDOWS
+// Time switch buttons
 document.querySelectorAll(".time-btn").forEach(btn => {
-  btn.addEventListener("click", () => {
-    currentWindow = btn.dataset.window;
-    document.querySelectorAll(".time-btn").forEach(b=>b.classList.remove("active"));
-    btn.classList.add("active");
-    render(); // re-render charts & top lists for the selected window
+  btn.addEventListener("click", e => {
+    currentWindow = e.target.dataset.window;
+    render();
   });
 });
 
-// Set default active button
-document.querySelector(`.time-btn[data-window="${currentWindow}"]`).classList.add("active");
-
+// Initial render + live updates
 render();
 setInterval(render, 20000);
+
 </script>
 
 </body>
