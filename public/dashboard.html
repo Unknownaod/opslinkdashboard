@@ -16,18 +16,12 @@
     <span id="guild-name" class="font-bold text-xl">
       Loading…
     </span>
-
-    <a
-      href="/guilds.html"
-      class="bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded transition"
-    >
+    <a href="/guilds.html" class="bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded transition">
       Back to Servers
     </a>
   </nav>
 
-  <!-- Main -->
   <main class="flex-1 px-6 py-8 max-w-7xl mx-auto w-full">
-
     <p id="status" class="text-gray-400 text-center mb-6">
       Loading server analytics…
     </p>
@@ -35,18 +29,19 @@
     <!-- Overview -->
     <section class="mb-10">
       <h2 class="text-2xl font-bold mb-4">Overview</h2>
-
       <div class="grid gap-6 sm:grid-cols-2 md:grid-cols-3">
         <div class="bg-gray-800 p-6 rounded text-center">
           <h3 class="text-gray-400">Members</h3>
           <p id="members-count" class="text-3xl font-bold">—</p>
         </div>
-
+        <div class="bg-gray-800 p-6 rounded text-center">
+          <h3 class="text-gray-400">Humans</h3>
+          <p id="humans-count" class="text-3xl font-bold">—</p>
+        </div>
         <div class="bg-gray-800 p-6 rounded text-center">
           <h3 class="text-gray-400">Bots</h3>
           <p id="bots-count" class="text-3xl font-bold">—</p>
         </div>
-
         <div class="bg-gray-800 p-6 rounded text-center">
           <h3 class="text-gray-400">Boosts</h3>
           <p id="boosts-count" class="text-3xl font-bold">—</p>
@@ -68,18 +63,15 @@
         <h2 class="text-xl font-bold mb-3">Top Members</h2>
         <ul id="top-members" class="space-y-3"></ul>
       </div>
-
       <div>
         <h2 class="text-xl font-bold mb-3">Top Channels</h2>
         <ul id="top-channels" class="space-y-3"></ul>
       </div>
-
       <div>
         <h2 class="text-xl font-bold mb-3">Top Emojis</h2>
         <ul id="top-emojis" class="space-y-3"></ul>
       </div>
     </section>
-
   </main>
 
   <footer class="bg-gray-800 text-gray-400 text-center p-4">
@@ -91,91 +83,60 @@
       const status = document.getElementById("status");
       const params = new URLSearchParams(window.location.search);
       const guildId = params.get("guildId");
-
-      if (!guildId) {
-        window.location.href = "/guilds.html";
-        return;
-      }
+      if (!guildId) return window.location.href = "/guilds.html";
 
       try {
         const res = await fetch(`/api/servers/${guildId}/analytics`);
-
-        // Not authenticated
-        if (res.status === 401) {
-          window.location.href = "/";
-          return;
-        }
-
-        if (!res.ok) {
-          throw new Error("Failed to load analytics");
-        }
-
+        if (!res.ok) throw new Error("Failed to fetch analytics");
         const data = await res.json();
 
+        const o = data.overview;
+
         // Header
-        document.getElementById("guild-name").textContent = data.name || "Server Dashboard";
+        document.getElementById("guild-name").textContent = o.name || "Server Dashboard";
 
         // Overview
-        document.getElementById("members-count").textContent = data.members ?? "—";
-        document.getElementById("bots-count").textContent = data.bots ?? "—";
-        document.getElementById("boosts-count").textContent = data.boosts ?? "—";
+        document.getElementById("members-count").textContent = o.members ?? "—";
+        document.getElementById("humans-count").textContent = o.humans ?? "—";
+        document.getElementById("bots-count").textContent = o.bots ?? "—";
+        document.getElementById("boosts-count").textContent = o.boosts ?? "—";
 
         status.remove();
 
-        // Chart
+        // Timeline Chart
         if (data.timeline?.labels?.length) {
-          new Chart(
-            document.getElementById("messagesChart"),
-            {
-              type: "bar",
-              data: {
-                labels: data.timeline.labels,
-                datasets: [{
-                  label: "Messages",
-                  data: data.timeline.messages,
-                  backgroundColor: "#3b82f6"
-                }]
-              },
-              options: {
-                responsive: true,
-                plugins: { legend: { display: false } }
-              }
+          new Chart(document.getElementById("messagesChart"), {
+            type: "bar",
+            data: {
+              labels: data.timeline.labels,
+              datasets: [{
+                label: "Messages",
+                data: data.timeline.messages,
+                backgroundColor: "#3b82f6"
+              }]
+            },
+            options: {
+              responsive: true,
+              plugins: { legend: { display: false } }
             }
-          );
+          });
         }
 
-        // Helpers
-        function fillList(el, items, formatter) {
-          if (!items?.length) {
-            el.innerHTML = `<li class="text-gray-500">No data</li>`;
-            return;
-          }
-
-          items.forEach(item => {
+        // Helper for lists
+        function fillList(el, items, format) {
+          el.innerHTML = "";
+          if (!items?.length) return el.innerHTML = `<li class="text-gray-500">No data</li>`;
+          items.forEach(i => {
             const li = document.createElement("li");
             li.className = "bg-gray-800 p-3 rounded";
-            li.textContent = formatter(item);
+            li.textContent = format(i);
             el.appendChild(li);
           });
         }
 
-        fillList(
-          document.getElementById("top-members"),
-          data.topMembers,
-          m => `${m.username} — ${m.count} msgs`
-        );
-
-        fillList(
-          document.getElementById("top-channels"),
-          data.topChannels,
-          c => `#${c.name} — ${c.count} msgs`
-        );
-
-        fillList(
-          document.getElementById("top-emojis"),
-          data.topEmojis,
-          e => `${e.emoji} × ${e.count}`
-        );
+        fillList(document.getElementById("top-members"), data.topMembers, m => `${m.username} — ${m.count} msgs`);
+        fillList(document.getElementById("top-channels"), data.topChannels, c => `#${c.name} — ${c.count} msgs`);
+        fillList(document.getElementById("top-emojis"), data.topEmojis, e => `${e.emoji} × ${e.count}`);
 
       } catch (err) {
         console.error(err);
