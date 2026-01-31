@@ -4,32 +4,51 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Discord Analytics • Track Your Server</title>
+
+  <!-- Tailwind CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
+
 <body class="bg-gray-900 text-white font-sans">
 
   <!-- HERO -->
   <section class="text-center py-20 px-4">
-    <h1 class="text-5xl font-extrabold mb-4">Know Everything About Your Discord Server</h1>
+    <h1 class="text-5xl font-extrabold mb-4">
+      Know Everything About Your Discord Server
+    </h1>
+
     <p class="text-gray-300 text-lg max-w-2xl mx-auto mb-8">
-      Track messages, joins, leaves, boosts, emojis, voice activity, threads, top members, and every detail in real-time.
+      Track messages, joins, leaves, boosts, emojis, voice activity, threads,
+      top members, and every detail in real-time.
     </p>
+
     <div class="flex justify-center gap-4 flex-wrap">
-      <button id="login-btn" class="bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded text-lg font-semibold transition">
+      <!-- Login -->
+      <button
+        id="login-btn"
+        class="bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded text-lg font-semibold transition"
+      >
         Login with Discord
       </button>
-      <a href="https://discord.com/oauth2/authorize?client_id=1466430352238055587&permissions=2199023779840&integration_type=0&scope=bot" target="_blank" class="bg-green-600 hover:bg-green-700 px-6 py-3 rounded text-lg font-semibold transition">
+
+      <!-- Bot Invite -->
+      <a
+        href="https://discord.com/oauth2/authorize?client_id=1466430352238055587&permissions=2199023779840&integration_type=0&scope=bot"
+        target="_blank"
+        class="bg-green-600 hover:bg-green-700 px-6 py-3 rounded text-lg font-semibold transition"
+      >
         Add the Bot
       </a>
     </div>
   </section>
 
+  <!-- SCRIPT -->
   <script>
-    document.getElementById('login-btn').addEventListener('click', async () => {
-      // Redirect to your backend OAuth login endpoint
-      // This should handle Discord login and redirect back to guilds.html
-      window.location.href = '/auth/discord?redirect=/guilds.html';
+    document.getElementById("login-btn").addEventListener("click", () => {
+      // Start Discord OAuth via Vercel backend
+      window.location.href = "/api/login";
     });
   </script>
+
 </body>
 </html>
