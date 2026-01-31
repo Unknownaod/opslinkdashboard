@@ -1,12 +1,15 @@
 import mongoose from "mongoose";
-import ServerAnalytics from "../../../models/ServerAnalytics"; // your schema file
+import ServerAnalytics from "../../../models/ServerAnalytics";
 
-// Connect to Mongo (reuse connection in Vercel)
+// -----------------------
+// Connect to Mongo (Vercel serverless safe)
+// -----------------------
 if (!mongoose.connection.readyState) {
   mongoose.connect(process.env.MONGO_URI, {
     useNewUrlParser: true,
     useUnifiedTopology: true
-  });
+  }).then(() => console.log("✅ Mongo connected"))
+    .catch(err => console.error("❌ Mongo connection error:", err));
 }
 
 export default async function handler(req, res) {
@@ -17,7 +20,7 @@ export default async function handler(req, res) {
     const guildData = await ServerAnalytics.findOne({ discordServerId: guildId });
     if (!guildData) return res.status(404).json({ error: "Guild not found" });
 
-    // --- Overview (latest snapshot) ---
+    // --- Latest snapshot overview ---
     const latestSnapshot = guildData.snapshots?.[guildData.snapshots.length - 1] || {};
     const overview = {
       name: guildData.name || "Unknown Guild",
@@ -40,20 +43,19 @@ export default async function handler(req, res) {
     // --- Timeline (last 7 days) ---
     const now = Date.now();
     const sevenDays = 7 * 24 * 60 * 60 * 1000;
-    const timelineSnapshots = (guildData.snapshots || []).filter(s => now - new Date(s.timestamp).getTime() <= sevenDays);
+    const snapshots7d = (guildData.snapshots || [])
+      .filter(s => now - new Date(s.timestamp).getTime() <= sevenDays);
 
     const timeline = {
-      labels: timelineSnapshots.map(s => new Date(s.timestamp).toISOString().slice(0, 10)),
-      messages: timelineSnapshots.map(s => {
-        // Count messages in events between snapshots
-        const snapshotTime = new Date(s.timestamp);
-        const nextSnapshotTime = new Date(snapshotTime.getTime() + 24*60*60*1000);
-        const messages = guildData.events.filter(e =>
+      labels: snapshots7d.map(s => new Date(s.timestamp).toISOString().slice(0, 10)),
+      messages: snapshots7d.map((s, i) => {
+        const start = new Date(s.timestamp);
+        const end = snapshots7d[i + 1] ? new Date(snapshots7d[i + 1].timestamp) : new Date();
+        return guildData.events.filter(e =>
           e.type === "message" &&
-          new Date(e.timestamp) >= snapshotTime &&
-          new Date(e.timestamp) < nextSnapshotTime
-        );
-        return messages.length;
+          new Date(e.timestamp) >= start &&
+          new Date(e.timestamp) < end
+        ).length;
       })
     };
 
@@ -65,9 +67,9 @@ export default async function handler(req, res) {
       topMembersMap[userId] = (topMembersMap[userId] || 0) + 1;
     });
     const topMembers = Object.entries(topMembersMap)
-      .sort((a,b) => b[1]-a[1])
+      .sort((a, b) => b[1] - a[1])
       .slice(0, 5)
-      .map(([username, count]) => ({ username, count }));
+      .map(([id, count]) => ({ username: id, count }));
 
     // --- Top Channels ---
     const topChannelsMap = {};
@@ -76,22 +78,22 @@ export default async function handler(req, res) {
       topChannelsMap[channelId] = (topChannelsMap[channelId] || 0) + 1;
     });
     const topChannels = Object.entries(topChannelsMap)
-      .sort((a,b) => b[1]-a[1])
-      .slice(0,5)
-      .map(([name,count]) => ({ name, count }));
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([id, count]) => ({ name: id, count }));
 
     // --- Top Emojis ---
     const emojiMap = {};
     messageEvents.forEach(e => {
       const emojis = e.data.emojiCount || {};
-      Object.entries(emojis).forEach(([emoji,count]) => {
+      Object.entries(emojis).forEach(([emoji, count]) => {
         emojiMap[emoji] = (emojiMap[emoji] || 0) + count;
       });
     });
     const topEmojis = Object.entries(emojiMap)
-      .sort((a,b)=>b[1]-a[1])
-      .slice(0,5)
-      .map(([emoji,count])=>({ emoji, count }));
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([emoji, count]) => ({ emoji, count }));
 
     res.status(200).json({
       overview,
@@ -101,7 +103,7 @@ export default async function handler(req, res) {
       topEmojis
     });
   } catch (err) {
-    console.error(err);
+    console.error("❌ /api/servers/[guildId]/analytics error:", err);
     res.status(500).json({ error: "Server error" });
   }
 }
