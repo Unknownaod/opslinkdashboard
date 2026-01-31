@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Your Servers • Discord Analytics</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-white font-sans flex flex-col min-h-screen">
+
+  <!-- Navbar -->
+  <nav class="bg-gray-800 p-4 flex justify-between items-center">
+    <span class="font-bold text-xl">Discord Analytics</span>
+    <a href="/logout" class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded">Logout</a>
+  </nav>
+
+  <main class="flex-1 p-6">
+    <h1 class="text-3xl font-bold mb-6 text-center">Your Servers</h1>
+    <div id="guild-list" class="grid md:grid-cols-3 gap-6 max-w-6xl mx-auto">
+      <!-- Guild cards will go here -->
+    </div>
+  </main>
+
+  <footer class="bg-gray-800 text-gray-400 p-4 text-center">
+    &copy; 2026 Discord Analytics
+  </footer>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      const guildList = document.getElementById('guild-list');
+
+      // Fetch guilds the user has access to from backend
+      const response = await fetch('/api/guilds'); // returns [{id,name,icon}]
+      const guilds = await response.json();
+
+      guilds.forEach(g => {
+        const card = document.createElement('div');
+        card.className = "bg-gray-700 p-4 rounded hover:bg-gray-600 transition flex flex-col items-center";
+
+        const icon = document.createElement('img');
+        icon.src = g.icon ? `https://cdn.discordapp.com/icons/${g.id}/${g.icon}.png` : 'https://via.placeholder.com/80';
+        icon.className = "h-20 w-20 rounded mb-2";
+
+        const name = document.createElement('h2');
+        name.textContent = g.name;
+        name.className = "font-semibold text-lg text-center mb-2";
+
+        const button = document.createElement('a');
+        button.textContent = "View Dashboard";
+        button.href = `/dashboard.html?guildId=${g.id}`;
+        button.className = "bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded mt-auto";
+
+        card.append(icon, name, button);
+        guildList.appendChild(card);
+      });
+    });
+  </script>
+
+</body>
+</html>
