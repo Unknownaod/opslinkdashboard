@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Your Servers • Discord Analytics</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Your Servers • Discord Analytics</title>
+<script src="https://cdn.tailwindcss.com"></script>
 </head>
 
 <body class="bg-gray-900 text-white font-sans min-h-screen flex flex-col">
@@ -12,96 +12,71 @@
   <!-- Navbar -->
   <nav class="bg-gray-800 px-6 py-4 flex justify-between items-center">
     <span class="font-bold text-xl">Discord Analytics</span>
-    <a href="/api/logout" class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded transition">
-      Logout
-    </a>
+    <a href="/api/logout" class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded transition">Logout</a>
   </nav>
 
   <!-- Main -->
   <main class="flex-1 px-6 py-10">
-    <h1 class="text-3xl font-bold text-center mb-6">Servers</h1>
-
-    <!-- Status -->
+    <h1 class="text-3xl font-bold text-center mb-6">Your Servers</h1>
     <p id="status" class="text-center text-gray-400 mb-6">Loading your servers…</p>
 
-    <!-- Sections -->
-    <section id="bot-in-section" class="mb-10">
-      <h2 class="text-xl font-semibold mb-4">Servers with Bot</h2>
-      <div id="bot-in-list" class="grid gap-6 sm:grid-cols-2 md:grid-cols-3"></div>
-    </section>
-
-    <section id="bot-not-in-section" class="mb-10">
-      <h2 class="text-xl font-semibold mb-4">Servers without Bot</h2>
-      <div id="bot-not-in-list" class="grid gap-6 sm:grid-cols-2 md:grid-cols-3"></div>
-    </section>
+    <div id="guild-list" class="grid gap-6 sm:grid-cols-2 md:grid-cols-3 max-w-6xl mx-auto"></div>
   </main>
 
-  <footer class="bg-gray-800 text-gray-400 text-center p-4">
-    &copy; 2026 Discord Analytics
-  </footer>
+  <footer class="bg-gray-800 text-gray-400 text-center p-4">&copy; 2026 Discord Analytics</footer>
 
   <script>
     async function loadGuilds() {
       const status = document.getElementById("status");
-      const botInList = document.getElementById("bot-in-list");
-      const botNotInList = document.getElementById("bot-not-in-list");
-
-      botInList.innerHTML = "";
-      botNotInList.innerHTML = "";
+      const list = document.getElementById("guild-list");
 
       try {
         const res = await fetch("/api/guilds");
         if (res.status === 401) return window.location.href = "/";
         if (!res.ok) throw new Error("Failed to load guilds");
 
-        const guilds = await res.json();
-        if (!guilds.length) {
+        const { userGuilds, botGuilds } = await res.json();
+
+        if (!userGuilds.length) {
           status.textContent = "No servers found.";
           return;
         }
+
         status.remove();
 
-        // Filter servers based on bot membership
-        const botInGuilds = guilds.filter(g => g.userIn && g.botIn);
-        const botNotInGuilds = guilds.filter(g => g.userIn && !g.botIn);
+        // Create a set of bot guild IDs for fast lookup
+        const botGuildSet = new Set(botGuilds.map(g => g.id));
 
-        function renderGuildList(listEl, guildList, botIn) {
-          listEl.innerHTML = "";
-          guildList.forEach(guild => {
-            const card = document.createElement("div");
-            card.className = "bg-gray-800 rounded-lg p-6 flex flex-col items-center text-center hover:bg-gray-700 transition";
+        userGuilds.forEach(guild => {
+          const card = document.createElement("div");
+          card.className = "bg-gray-800 rounded-lg p-6 flex flex-col items-center text-center hover:bg-gray-700 transition";
 
-            const icon = document.createElement("img");
-            icon.src = guild.icon
-              ? `https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.png`
-              : "https://cdn.discordapp.com/embed/avatars/0.png";
-            icon.alt = guild.name;
-            icon.className = "h-20 w-20 rounded-full mb-4";
+          const icon = document.createElement("img");
+          icon.src = guild.icon
+            ? `https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.png`
+            : "https://cdn.discordapp.com/embed/avatars/0.png";
+          icon.alt = guild.name;
+          icon.className = "h-20 w-20 rounded-full mb-4";
 
-            const name = document.createElement("h2");
-            name.textContent = guild.name;
-            name.className = "font-semibold text-lg mb-4";
+          const name = document.createElement("h2");
+          name.textContent = guild.name;
+          name.className = "font-semibold text-lg mb-4";
 
-            const button = document.createElement("a");
-            if (botIn) {
-              button.href = `/dashboard.html?guildId=${guild.id}`;
-              button.textContent = "View Dashboard";
-              button.className = "mt-auto bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded transition";
-            } else {
-              button.href = `/api/invite-bot?guildId=${guild.id}`;
-              button.target = "_blank";
-              button.textContent = "Add Bot";
-              button.className = "mt-auto bg-green-600 hover:bg-green-700 px-4 py-2 rounded transition";
-            }
+          const button = document.createElement("a");
+          if (botGuildSet.has(guild.id)) {
+            button.href = `/dashboard.html?guildId=${guild.id}`;
+            button.textContent = "View Dashboard";
+            button.className = "mt-auto bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded transition";
+          } else {
+            button.href = `/api/invite-bot?guildId=${guild.id}`;
+            button.target = "_blank";
+            button.textContent = "Add Bot";
+            button.className = "mt-auto bg-green-600 hover:bg-green-700 px-4 py-2 rounded transition";
+          }
 
-            card.append(icon, name, button);
-            listEl.appendChild(card);
-          });
-        }
-
-        renderGuildList(botInList, botInGuilds, true);
-        renderGuildList(botNotInList, botNotInGuilds, false);
-
+          card.append(icon, name, button);
+          list.appendChild(card);
+        });
       } catch (err) {
         console.error(err);
         status.textContent = "Something went wrong while loading your servers.";
