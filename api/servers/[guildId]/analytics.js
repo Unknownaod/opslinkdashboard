@@ -1,18 +1,25 @@
 import { MongoClient } from "mongodb";
 
 let client;
-let db;
+let cachedDb;
 
 // =======================
 // Mongo Connection (serverless-safe)
 // =======================
 async function connectMongo() {
-  if (!client) {
-    client = new MongoClient(process.env.MONGO_URI, { useUnifiedTopology: true });
-    await client.connect();
-    db = client.db();
+  if (cachedDb) return cachedDb;
+
+  if (!process.env.MONGO_URI) {
+    throw new Error("Missing MONGO_URI");
   }
-  return db;
+
+  client ??= new MongoClient(process.env.MONGO_URI);
+  if (!client.topology?.isConnected()) {
+    await client.connect();
+  }
+
+  cachedDb = client.db();
+  return cachedDb;
 }
 
 // =======================
@@ -36,7 +43,9 @@ const WINDOWS = {
 // =======================
 export default async function handler(req, res) {
   const { guildId } = req.query;
-  if (!guildId) return res.status(400).json({ error: "No guildId provided" });
+  if (!guildId) {
+    return res.status(400).json({ error: "No guildId provided" });
+  }
 
   try {
     const db = await connectMongo();
@@ -46,68 +55,88 @@ export default async function handler(req, res) {
     const GuildStats = db.collection("guildstats");
 
     // =======================
-    // Latest snapshot (overview)
+    // Latest snapshot
     // =======================
-    const latest = await Snapshots.findOne({ guildId }, { sort: { timestamp: -1 } });
+    const latest = await Snapshots.findOne(
+      { guildId },
+      { sort: { timestamp: -1 } }
+    );
 
-    if (!latest)
+    if (!latest) {
       return res.status(404).json({ error: "No snapshot data found" });
+    }
 
     const overview = {
-      name: latest.name || "Unknown Guild",
-      iconURL: latest.iconURL || null,
-      members: latest.members || 0,
-      humans: latest.humans || 0,
-      bots: latest.bots || 0,
-      boosts: latest.boosts || 0,
-      online: latest.online || 0,
-      idle: latest.idle || 0,
-      dnd: latest.dnd || 0,
-      offline: latest.offline || 0,
-      channels: latest.channels || {},
-      roles: latest.roles || {},
-      threads: latest.threads || {},
-      emojis: latest.emojis || {},
-      stickers: latest.stickers || {},
-      topMessages: latest.topMessages || {},
-      topVoice: latest.topVoice || {}
+      name: latest.name ?? "Unknown Guild",
+      iconURL: latest.iconURL ?? null,
+      members: latest.members ?? 0,
+      humans: latest.humans ?? 0,
+      bots: latest.bots ?? 0,
+      boosts: latest.boosts ?? 0,
+      online: latest.online ?? 0,
+      idle: latest.idle ?? 0,
+      dnd: latest.dnd ?? 0,
+      offline: latest.offline ?? 0,
+      channels: latest.channels ?? {},
+      roles: latest.roles ?? {},
+      threads: latest.threads ?? {},
+      emojis: latest.emojis ?? {},
+      stickers: latest.stickers ?? {},
+      topMessages: latest.topMessages ?? {},
+      topVoice: latest.topVoice ?? {}
     };
 
     // =======================
-    // Guild stats for windows
+    // Stats doc
     // =======================
     const statsDoc = await GuildStats.findOne({ guildId });
 
     // =======================
-    // Timeline (messages, joins, leaves, boosts)
+    // Timeline
     // =======================
     const now = Date.now();
     const timeline = {};
+
     const allSnapshots = await Snapshots.find({ guildId })
       .project({ timestamp: 1, boosts: 1 })
       .sort({ timestamp: 1 })
       .toArray();
 
     for (const [label, windowMs] of Object.entries(WINDOWS)) {
-      const cutoff = new Date(now - windowMs);
-      const windowSnapshots = allSnapshots.filter(s => s.timestamp >= cutoff);
+      const cutoff = now - windowMs;
+
+      const windowSnapshots = allSnapshots.filter(s => {
+        const ts = s.timestamp instanceof Date
+          ? s.timestamp.getTime()
+          : s.timestamp;
+        return ts >= cutoff;
+      });
 
       timeline[label] = {
-        labels: windowSnapshots.map(s => new Date(s.timestamp).toISOString().slice(0, 10)),
-        boosts: windowSnapshots.map(s => s.boosts || 0),
-        messages: windowSnapshots.map(() => statsDoc?.stats?.[label]?.messages || 0),
-        joins: windowSnapshots.map(() => statsDoc?.stats?.[label]?.joins || 0),
-        leaves: windowSnapshots.map(() => statsDoc?.stats?.[label]?.leaves || 0)
+        labels: windowSnapshots.map(s =>
+          new Date(s.timestamp).toISOString().slice(0, 10)
+        ),
+        boosts: windowSnapshots.map(s => s.boosts ?? 0),
+        messages: windowSnapshots.map(
+          () => statsDoc?.stats?.[label]?.messages ?? 0
+        ),
+        joins: windowSnapshots.map(
+          () => statsDoc?.stats?.[label]?.joins ?? 0
+        ),
+        leaves: windowSnapshots.map(
+          () => statsDoc?.stats?.[label]?.leaves ?? 0
+        )
       };
     }
 
     // =======================
-    // Heavy analytics (events scan)
+    // Heavy analytics
     // =======================
     const memberMap = {};
     const channelMap = {};
     const emojiMap = {};
     const voiceMap = {};
+
     let joinCount = 0;
     let leaveCount = 0;
     let messageCount = 0;
@@ -117,7 +146,7 @@ export default async function handler(req, res) {
 
     await cursor.forEach(e => {
       switch (e.type) {
-        case "message":
+        case "message": {
           messageCount++;
           const userKey = `${e.data.userId}:${e.data.username}`;
           memberMap[userKey] = (memberMap[userKey] || 0) + 1;
@@ -129,11 +158,13 @@ export default async function handler(req, res) {
             emojiMap[emoji] = (emojiMap[emoji] || 0) + count;
           }
           break;
+        }
 
-        case "voice":
+        case "voice": {
           const voiceKey = `${e.data.userId}:${e.data.username}`;
           voiceMap[voiceKey] = (voiceMap[voiceKey] || 0) + 1;
           break;
+        }
 
         case "join":
           joinCount++;
@@ -146,9 +177,6 @@ export default async function handler(req, res) {
         case "boost":
           boostCount++;
           break;
-
-        default:
-          break;
       }
     });
 
@@ -160,29 +188,33 @@ export default async function handler(req, res) {
       return { userId, username, count: x.count };
     });
 
-    const topChannels = topN(channelMap).map(x => ({ name: x.key, count: x.count }));
-    const topEmojis = topN(emojiMap).map(x => ({ emoji: x.key, count: x.count }));
+    const topChannels = topN(channelMap).map(x => ({
+      name: x.key,
+      count: x.count
+    }));
+
+    const topEmojis = topN(emojiMap).map(x => ({
+      emoji: x.key,
+      count: x.count
+    }));
+
     const topRoles = topN(
       Object.values(latest.roles || {}).reduce((acc, role) => {
         if (!role?.name) return acc;
-        acc[role.name] = role.count || 0;
+        acc[role.name] = role.count ?? 0;
         return acc;
       }, {})
     ).map(x => ({ role: x.key, count: x.count }));
 
-    const topStickers = topN(
-      Object.values(latest.stickers || {}).reduce((acc, s) => {
-        acc[s] = (acc[s] || 0) + 1;
-        return acc;
-      }, {})
-    ).map(x => ({ sticker: x.key, count: x.count }));
+    const topStickers = topN(latest.stickers || {}).map(x => ({
+      sticker: x.key,
+      count: x.count
+    }));
 
-    const topThreads = topN(
-      Object.values(latest.threads || {}).reduce((acc, t) => {
-        acc[t] = (acc[t] || 0) + 1;
-        return acc;
-      }, {})
-    ).map(x => ({ thread: x.key, count: x.count }));
+    const topThreads = topN(latest.threads || {}).map(x => ({
+      thread: x.key,
+      count: x.count
+    }));
 
     const topVoice = topN(voiceMap).map(x => {
       const [userId, username] = x.key.split(":");
@@ -195,7 +227,12 @@ export default async function handler(req, res) {
     res.status(200).json({
       overview,
       timeline,
-      counts: { joins: joinCount, leaves: leaveCount, messages: messageCount, boosts: boostCount },
+      counts: {
+        joins: joinCount,
+        leaves: leaveCount,
+        messages: messageCount,
+        boosts: boostCount
+      },
       topMembers,
       topChannels,
       topEmojis,
