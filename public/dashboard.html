@@ -190,7 +190,7 @@ async function fetchData(force = false) {
     return cachedData;
   } catch (err) {
     console.error("Analytics fetch error:", err);
-    return cachedData;
+    return cachedData; // Return cached data on failure to minimize impact
   } finally {
     isFetching = false;
   }
@@ -230,7 +230,11 @@ function renderCharts(data) {
         backgroundColor: "rgba(59,130,246,0.7)"
       }]
     },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+    options: { 
+      responsive: true, 
+      maintainAspectRatio: false, 
+      plugins: { legend: { display: false } } 
+    }
   });
 
   // Presence chart
@@ -244,7 +248,11 @@ function renderCharts(data) {
         backgroundColor: ["#10B981", "#FACC15", "#F87171", "#6B7280"]
       }]
     },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: "#fff" } } } }
+    options: { 
+      responsive: true, 
+      maintainAspectRatio: false, 
+      plugins: { legend: { labels: { color: "#fff" } } } 
+    }
   });
 
   // Joins / Leaves chart
@@ -267,7 +275,13 @@ function renderCharts(data) {
     type: "line",
     data: {
       labels: timeline.labels,
-      datasets: [{ label: "Boosts", data: timeline.boosts, borderColor: "#3B82F6", backgroundColor: "rgba(59,130,246,0.3)", tension: 0.3 }]
+      datasets: [{ 
+        label: "Boosts", 
+        data: timeline.boosts, 
+        borderColor: "#3B82F6", 
+        backgroundColor: "rgba(59,130,246,0.3)", 
+        tension: 0.3 
+      }]
     },
     options: { responsive: true, maintainAspectRatio: false }
   });
@@ -315,10 +329,10 @@ document.querySelectorAll(".time-btn").forEach(btn => {
 // Initial load + auto-refresh every 20s
 // =======================
 render(true);
-setInterval(() => render(true), 20000);
+setInterval(() => render(true), 20000);  // Auto-refresh every 20s
 
 // Optional: force reload every 30s to refresh everything including cachedData
-setInterval(() => { cachedData = null; render(true); }, 30000);
+setInterval(() => { cachedData = null; render(true); }, 30000);  // Force reload every 30s
 </script>
 
 
