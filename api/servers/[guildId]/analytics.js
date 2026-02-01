@@ -169,18 +169,21 @@ export default async function handler(req, res) {
         return acc;
       }, {})
     ).map(x => ({ role: x.key, count: x.count }));
+
     const topStickers = topN(
       Object.values(latest.stickers || {}).reduce((acc, s) => {
         acc[s] = (acc[s] || 0) + 1;
         return acc;
       }, {})
     ).map(x => ({ sticker: x.key, count: x.count }));
+
     const topThreads = topN(
       Object.values(latest.threads || {}).reduce((acc, t) => {
         acc[t] = (acc[t] || 0) + 1;
         return acc;
       }, {})
     ).map(x => ({ thread: x.key, count: x.count }));
+
     const topVoice = topN(voiceMap).map(x => {
       const [userId, username] = x.key.split(":");
       return { userId, username, count: x.count };
