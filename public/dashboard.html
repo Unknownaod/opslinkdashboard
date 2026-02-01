@@ -170,6 +170,9 @@ let msgChart, presenceChart, joinLeaveChart, boostChart;
 
 const el = id => document.getElementById(id);
 
+// =======================
+// Fetch analytics data
+// =======================
 async function fetchData(force = false) {
   if (!guildId) {
     location.href = "/guilds.html";
@@ -193,15 +196,16 @@ async function fetchData(force = false) {
   }
 }
 
+// =======================
+// Fill HTML lists
+// =======================
 function fillList(id, items, format) {
   const list = el(id);
   list.innerHTML = "";
-
   if (!items?.length) {
     list.innerHTML = "<li class='text-zinc-500'>No data</li>";
     return;
   }
-
   for (const item of items) {
     const li = document.createElement("li");
     li.textContent = format(item);
@@ -209,10 +213,13 @@ function fillList(id, items, format) {
   }
 }
 
+// =======================
+// Render charts
+// =======================
 function renderCharts(data) {
   const timeline = data.timeline[currentWindow];
 
-  // Messages
+  // Messages chart
   msgChart?.destroy();
   msgChart = new Chart(el("msgChart"), {
     type: "bar",
@@ -223,86 +230,57 @@ function renderCharts(data) {
         backgroundColor: "rgba(59,130,246,0.7)"
       }]
     },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { legend: { display: false } }
-    }
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
   });
 
-  // Presence
+  // Presence chart
   presenceChart?.destroy();
   presenceChart = new Chart(el("presenceChart"), {
     type: "doughnut",
     data: {
       labels: ["Online", "Idle", "DND", "Offline"],
       datasets: [{
-        data: [
-          data.overview.online,
-          data.overview.idle,
-          data.overview.dnd,
-          data.overview.offline
-        ],
+        data: [data.overview.online, data.overview.idle, data.overview.dnd, data.overview.offline],
         backgroundColor: ["#10B981", "#FACC15", "#F87171", "#6B7280"]
       }]
     },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { legend: { labels: { color: "#fff" } } }
-    }
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: "#fff" } } } }
   });
 
-  // Joins / Leaves
+  // Joins / Leaves chart
   joinLeaveChart?.destroy();
   joinLeaveChart = new Chart(el("joinLeaveChart"), {
     type: "line",
     data: {
       labels: timeline.labels,
       datasets: [
-        {
-          label: "Joins",
-          data: timeline.joins,
-          borderColor: "#10B981",
-          backgroundColor: "rgba(16,185,129,0.3)",
-          tension: 0.3
-        },
-        {
-          label: "Leaves",
-          data: timeline.leaves,
-          borderColor: "#F87171",
-          backgroundColor: "rgba(248,113,113,0.3)",
-          tension: 0.3
-        }
+        { label: "Joins", data: timeline.joins, borderColor: "#10B981", backgroundColor: "rgba(16,185,129,0.3)", tension: 0.3 },
+        { label: "Leaves", data: timeline.leaves, borderColor: "#F87171", backgroundColor: "rgba(248,113,113,0.3)", tension: 0.3 }
       ]
     },
     options: { responsive: true, maintainAspectRatio: false }
   });
 
-  // Boosts
+  // Boosts chart
   boostChart?.destroy();
   boostChart = new Chart(el("boostChart"), {
     type: "line",
     data: {
       labels: timeline.labels,
-      datasets: [{
-        label: "Boosts",
-        data: timeline.boosts,
-        borderColor: "#3B82F6",
-        backgroundColor: "rgba(59,130,246,0.3)",
-        tension: 0.3
-      }]
+      datasets: [{ label: "Boosts", data: timeline.boosts, borderColor: "#3B82F6", backgroundColor: "rgba(59,130,246,0.3)", tension: 0.3 }]
     },
     options: { responsive: true, maintainAspectRatio: false }
   });
 }
 
+// =======================
+// Render everything
+// =======================
 async function render(forceFetch = false) {
   const data = await fetchData(forceFetch);
   if (!data) return;
 
   const o = data.overview;
-
   el("serverName").textContent = o.name;
   el("serverIcon").src = o.iconURL || "https://cdn.discordapp.com/embed/avatars/0.png";
 
@@ -323,7 +301,9 @@ async function render(forceFetch = false) {
   renderCharts(data);
 }
 
-// Time buttons (NO refetch)
+// =======================
+// Time window buttons
+// =======================
 document.querySelectorAll(".time-btn").forEach(btn => {
   btn.addEventListener("click", () => {
     currentWindow = btn.dataset.window;
@@ -331,9 +311,14 @@ document.querySelectorAll(".time-btn").forEach(btn => {
   });
 });
 
-// Initial load + live refresh
+// =======================
+// Initial load + auto-refresh every 20s
+// =======================
 render(true);
 setInterval(() => render(true), 20000);
+
+// Optional: force reload every 30s to refresh everything including cachedData
+setInterval(() => { cachedData = null; render(true); }, 30000);
 </script>
 
 
