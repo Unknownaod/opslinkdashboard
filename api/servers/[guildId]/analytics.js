@@ -8,7 +8,7 @@ let db;
 // =======================
 async function connectMongo() {
   if (!client) {
-    client = new MongoClient(process.env.MONGO_URI);
+    client = new MongoClient(process.env.MONGO_URI, { useUnifiedTopology: true });
     await client.connect();
     db = client.db();
   }
@@ -48,10 +48,7 @@ export default async function handler(req, res) {
     // =======================
     // Latest snapshot (overview)
     // =======================
-    const latest = await Snapshots.find({ guildId })
-      .sort({ timestamp: -1 })
-      .limit(1)
-      .next();
+    const latest = await Snapshots.findOne({ guildId }, { sort: { timestamp: -1 } });
 
     if (!latest)
       return res.status(404).json({ error: "No snapshot data found" });
@@ -77,18 +74,16 @@ export default async function handler(req, res) {
     };
 
     // =======================
-    // FAST STATS (from cache)
+    // Guild stats for windows
     // =======================
     const statsDoc = await GuildStats.findOne({ guildId });
 
     // =======================
-    // Timeline (snapshot-based, cheap)
+    // Timeline (messages, joins, leaves, boosts)
     // =======================
     const now = Date.now();
     const timeline = {};
-
-    const allSnapshots = await Snapshots
-      .find({ guildId })
+    const allSnapshots = await Snapshots.find({ guildId })
       .project({ timestamp: 1, boosts: 1 })
       .sort({ timestamp: 1 })
       .toArray();
@@ -98,12 +93,8 @@ export default async function handler(req, res) {
       const windowSnapshots = allSnapshots.filter(s => s.timestamp >= cutoff);
 
       timeline[label] = {
-        labels: windowSnapshots.map(s =>
-          new Date(s.timestamp).toISOString().slice(0, 10)
-        ),
+        labels: windowSnapshots.map(s => new Date(s.timestamp).toISOString().slice(0, 10)),
         boosts: windowSnapshots.map(s => s.boosts || 0),
-
-        // 🚀 counts are constant-time now
         messages: windowSnapshots.map(() => statsDoc?.stats?.[label]?.messages || 0),
         joins: windowSnapshots.map(() => statsDoc?.stats?.[label]?.joins || 0),
         leaves: windowSnapshots.map(() => statsDoc?.stats?.[label]?.leaves || 0)
@@ -111,34 +102,53 @@ export default async function handler(req, res) {
     }
 
     // =======================
-    // Heavy analytics (events scan — unavoidable)
+    // Heavy analytics (events scan)
     // =======================
     const memberMap = {};
     const channelMap = {};
     const emojiMap = {};
     const voiceMap = {};
+    let joinCount = 0;
+    let leaveCount = 0;
+    let messageCount = 0;
+    let boostCount = 0;
 
-    const cursor = Events.find({ guildId }).project({
-      type: 1,
-      data: 1
-    });
+    const cursor = Events.find({ guildId }).project({ type: 1, data: 1 });
 
     await cursor.forEach(e => {
-      if (e.type === "message") {
-        const userKey = `${e.data.userId}:${e.data.username}`;
-        memberMap[userKey] = (memberMap[userKey] || 0) + 1;
+      switch (e.type) {
+        case "message":
+          messageCount++;
+          const userKey = `${e.data.userId}:${e.data.username}`;
+          memberMap[userKey] = (memberMap[userKey] || 0) + 1;
 
-        const channelKey = e.data.channelName || e.data.channelId;
-        channelMap[channelKey] = (channelMap[channelKey] || 0) + 1;
+          const channelKey = e.data.channelName || e.data.channelId;
+          channelMap[channelKey] = (channelMap[channelKey] || 0) + 1;
 
-        for (const [emoji, count] of Object.entries(e.data.emojiCount || {})) {
-          emojiMap[emoji] = (emojiMap[emoji] || 0) + count;
-        }
-      }
+          for (const [emoji, count] of Object.entries(e.data.emojiCount || {})) {
+            emojiMap[emoji] = (emojiMap[emoji] || 0) + count;
+          }
+          break;
 
-      if (e.type === "voice") {
-        const key = `${e.data.userId}:${e.data.username}`;
-        voiceMap[key] = (voiceMap[key] || 0) + 1;
+        case "voice":
+          const voiceKey = `${e.data.userId}:${e.data.username}`;
+          voiceMap[voiceKey] = (voiceMap[voiceKey] || 0) + 1;
+          break;
+
+        case "join":
+          joinCount++;
+          break;
+
+        case "leave":
+          leaveCount++;
+          break;
+
+        case "boost":
+          boostCount++;
+          break;
+
+        default:
+          break;
       }
     });
 
@@ -150,16 +160,8 @@ export default async function handler(req, res) {
       return { userId, username, count: x.count };
     });
 
-    const topChannels = topN(channelMap).map(x => ({
-      name: x.key,
-      count: x.count
-    }));
-
-    const topEmojis = topN(emojiMap).map(x => ({
-      emoji: x.key,
-      count: x.count
-    }));
-
+    const topChannels = topN(channelMap).map(x => ({ name: x.key, count: x.count }));
+    const topEmojis = topN(emojiMap).map(x => ({ emoji: x.key, count: x.count }));
     const topRoles = topN(
       Object.values(latest.roles || {}).reduce((acc, role) => {
         if (!role?.name) return acc;
@@ -167,32 +169,30 @@ export default async function handler(req, res) {
         return acc;
       }, {})
     ).map(x => ({ role: x.key, count: x.count }));
-
     const topStickers = topN(
       Object.values(latest.stickers || {}).reduce((acc, s) => {
         acc[s] = (acc[s] || 0) + 1;
         return acc;
       }, {})
     ).map(x => ({ sticker: x.key, count: x.count }));
-
     const topThreads = topN(
       Object.values(latest.threads || {}).reduce((acc, t) => {
         acc[t] = (acc[t] || 0) + 1;
         return acc;
       }, {})
     ).map(x => ({ thread: x.key, count: x.count }));
-
     const topVoice = topN(voiceMap).map(x => {
       const [userId, username] = x.key.split(":");
       return { userId, username, count: x.count };
     });
 
     // =======================
-    // RESPONSE
+    // Response
     // =======================
     res.status(200).json({
       overview,
       timeline,
+      counts: { joins: joinCount, leaves: leaveCount, messages: messageCount, boosts: boostCount },
       topMembers,
       topChannels,
       topEmojis,
